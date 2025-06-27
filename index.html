@@ -615,7 +615,8 @@
     }
 
     startPlayerAutoMove() {
-      if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
+      // Очищаем старый интервал, если есть
+      if (this.playerMoveInterval) { clearInterval(this.playerMoveInterval); this.playerMoveInterval = null; }
       this.playerMoveInterval = setInterval(() => {
         if (!this.isGameActive || this.isPaused || !this.playerDirection) return;
         const newRow = this.playerPos[0] + this.playerDirection[0];
@@ -662,6 +663,8 @@
     }
 
     startComputerAI() {
+      // Очищаем старый интервал, если есть
+      if (this.computerInterval) { clearInterval(this.computerInterval); this.computerInterval = null; }
       // Путь будет вычисляться на лету
       this.computerPath = [];
       this.computerPathIndex = 0;
@@ -760,6 +763,8 @@
 
     // Алгоритм A* для поиска кратчайшего пути
     findPathAStar(maze, start, goal) {
+      // Призраки не могут строить путь к стартовой позиции
+      if (goal[0] === 1 && goal[1] === 1) return [start];
       const size = this.size;
       const openSet = [start];
       const cameFrom = {};
@@ -913,6 +918,8 @@
     }
 
     startTimer() {
+      // Очищаем старый интервал, если есть
+      if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
       this.timerInterval = setInterval(() => {
         if (!this.isPaused && this.isGameActive) {
           const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
@@ -969,9 +976,12 @@
     }
 
     startGhostAI() {
+      // Очищаем старый интервал, если есть
+      if (this.ghostMoveInterval) { clearInterval(this.ghostMoveInterval); this.ghostMoveInterval = null; }
       // Даем игроку 2 секунды форы
       setTimeout(() => {
         if (!this.isGameActive) return;
+        if (this.ghostMoveInterval) { clearInterval(this.ghostMoveInterval); this.ghostMoveInterval = null; }
         this.ghostMoveInterval = setInterval(() => {
           if (!this.isGameActive || this.isPaused) return;
           this.moveGhosts();
@@ -980,9 +990,12 @@
     }
 
     startComputerGhostAI() {
+      // Очищаем старый интервал, если есть
+      if (this.computerGhostMoveInterval) { clearInterval(this.computerGhostMoveInterval); this.computerGhostMoveInterval = null; }
       // Даем компьютеру 2 секунды форы
       setTimeout(() => {
         if (!this.isGameActive) return;
+        if (this.computerGhostMoveInterval) { clearInterval(this.computerGhostMoveInterval); this.computerGhostMoveInterval = null; }
         this.computerGhostMoveInterval = setInterval(() => {
           if (!this.isGameActive || this.isPaused) return;
           this.moveComputerGhosts();
@@ -1011,10 +1024,19 @@
           // Режим охоты: используем A*
           if (!ghost.path || ghost.pathIndex >= ghost.path.length || Math.random() < 0.1) {
             ghost.path = this.findPathAStar(maze, ghost.pos, targetPos);
+            // Если путь ведёт к старту — не идти
+            if (ghost.path && ghost.path.length > 0 && ghost.path[ghost.path.length-1][0] === 1 && ghost.path[ghost.path.length-1][1] === 1) {
+              ghost.path = [ghost.pos];
+            }
             ghost.pathIndex = 1;
           }
           if (ghost.path && ghost.pathIndex < ghost.path.length) {
-            ghost.pos = ghost.path[ghost.pathIndex];
+            // Не позволяем призраку попасть на старт
+            if (ghost.path[ghost.pathIndex][0] === 1 && ghost.path[ghost.pathIndex][1] === 1) {
+              // Остаётся на месте
+            } else {
+              ghost.pos = ghost.path[ghost.pathIndex];
+            }
             ghost.pathIndex++;
           }
         } else {
@@ -1025,13 +1047,14 @@
           // Находим все возможные направления (кроме обратного, если есть другие варианты)
           let validDirections = possibleDirections.filter(dir => {
             const checkPos = [ghost.pos[0] + dir[0], ghost.pos[1] + dir[1]];
+            if ((checkPos[0] === 1 && checkPos[1] === 1)) return false; // Не идти на старт
             if (reverseDirection && dir[0] === reverseDirection[0] && dir[1] === reverseDirection[1]) return false;
             return this.isValidMove(checkPos[0], checkPos[1], maze);
           });
           // Если только обратный путь возможен (тупик), разрешаем его
           if (validDirections.length === 0 && reverseDirection) {
             const backPos = [ghost.pos[0] + reverseDirection[0], ghost.pos[1] + reverseDirection[1]];
-            if (this.isValidMove(backPos[0], backPos[1], maze)) {
+            if (this.isValidMove(backPos[0], backPos[1], maze) && !(backPos[0] === 1 && backPos[1] === 1)) {
               validDirections = [reverseDirection];
             }
           }
@@ -1041,13 +1064,16 @@
           } else if (validDirections.length > 0) {
             // Если текущее направление еще валидно, продолжаем, иначе берем новый
             const nextPos = [ghost.pos[0] + (ghost.direction ? ghost.direction[0] : 0), ghost.pos[1] + (ghost.direction ? ghost.direction[1] : 0)];
-            if (!ghost.direction || !this.isValidMove(nextPos[0], nextPos[1], maze)) {
+            if (!ghost.direction || !this.isValidMove(nextPos[0], nextPos[1], maze) || (nextPos[0] === 1 && nextPos[1] === 1)) {
               ghost.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
             }
           }
           // Двигаемся в выбранном направлении
           if (ghost.direction) {
-            ghost.pos = [ghost.pos[0] + ghost.direction[0], ghost.pos[1] + ghost.direction[1]];
+            const nextPos = [ghost.pos[0] + ghost.direction[0], ghost.pos[1] + ghost.direction[1]];
+            if (!(nextPos[0] === 1 && nextPos[1] === 1)) {
+              ghost.pos = nextPos;
+            }
           }
         }
       }
@@ -1056,6 +1082,8 @@
     }
 
     canSeeTarget(ghost, maze, targetPos) {
+      // Стартовая позиция невидима для призраков
+      if (targetPos[0] === 1 && targetPos[1] === 1) return false;
       const [gRow, gCol] = ghost.pos;
       const [tRow, tCol] = targetPos;
       const lineOfSightDistance = 15;
@@ -1065,10 +1093,7 @@
         const end = Math.max(gCol, tCol);
         let wallFound = false;
         for (let i = start + 1; i < end; i++) {
-          if (maze[gRow][i] === 1) {
-            wallFound = true;
-            break;
-          }
+          if (maze[gRow][i] === 1) { wallFound = true; break; }
         }
         if (!wallFound) return true;
       }
@@ -1078,10 +1103,7 @@
         const end = Math.max(gRow, tRow);
         let wallFound = false;
         for (let i = start + 1; i < end; i++) {
-          if (maze[i][gCol] === 1) {
-            wallFound = true;
-            break;
-          }
+          if (maze[i][gCol] === 1) { wallFound = true; break; }
         }
         if (!wallFound) return true;
       }
@@ -1143,6 +1165,8 @@
       this.computerCaughtFlag = true;
       this.computerStatusEl.textContent = 'ПОЙМАН!';
       this.computerStatusEl.className = 'player-status status-finished';
+      this.computerPos = [-1, -1];
+      this.renderMazes();
       // Если игрок тоже пойман — ничья
       if (this.playerCaughtFlag) {
         this.endGame();
