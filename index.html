@@ -227,6 +227,12 @@
       z-index: 2;
     }
 
+    .tournament-table {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 500px;
+    }
+
     @media (max-width: 768px) {
       .game-container {
         flex-direction: column;
@@ -247,8 +253,9 @@
 <body>
 <div class="header">
   <h1>🏁 Гонка в Лабиринте</h1>
-  <p>Кто первый доберется до выхода?</p>
 </div>
+
+
 
 <div class="controls">
   <div class="size-controls">
@@ -288,12 +295,6 @@
   </div>
 </div>
 
-<div class="instructions">
-  <h3>🎯 Инструкции</h3>
-  <p><strong>Цель:</strong> Доберитесь до красного квадрата (выход) быстрее компьютера!</p>
-  <p><strong>Управление:</strong> Используйте стрелки ←↑↓→ или WASD для движения</p>
-  <p><strong>Правила:</strong> Зеленый квадрат - старт, красный - финиш. Нельзя проходить через стены!</p>
-</div>
 
 <div class="winner-overlay" id="winnerOverlay">
   <div class="winner-modal">
@@ -401,9 +402,17 @@
       this.lifeRespawnTimeout = null;
       this.playerLives = 0;
       this.computerLives = 0;
+      this.playerScore = 0;
+      this.computerScore = 0;
+      this.playerWins = 0;
+      this.computerWins = 0;
+      this.playerGames = 0;
+      this.computerGames = 0;
+      this.maxGames = 38;
+      this.loadTournamentData();
+      this.updateTournamentTable();
       this.initializeElements();
       this.setupEventListeners();
-      this.newGame();
     }
 
     initializeElements() {
@@ -821,22 +830,53 @@
     endGame(winner) {
       this.isGameActive = false;
       this.clearAllIntervals();
+      let isDraw = false;
       // Если ничья
       if (this.playerCaughtFlag && this.computerCaughtFlag) {
+        isDraw = true;
+      }
+      // Если ничья по времени
+      if (
+        this.playerStatusEl.textContent === 'НИЧЬЯ!' &&
+        this.computerStatusEl.textContent === 'НИЧЬЯ!'
+      ) {
+        isDraw = true;
+      }
+      if (isDraw) {
+        this.playerScore += 1;
+        this.computerScore += 1;
+        this.playerGames += 1;
+        this.computerGames += 1;
+        this.saveTournamentData();
+        this.updateTournamentTable();
         this.updateStatus('finished');
-        this.playerStatusEl.textContent = 'ПОЙМАН!';
+        this.playerStatusEl.textContent = 'НИЧЬЯ!';
         this.playerStatusEl.className = 'player-status status-finished';
-        this.computerStatusEl.textContent = 'ПОЙМАН!';
+        this.computerStatusEl.textContent = 'НИЧЬЯ!';
         this.computerStatusEl.className = 'player-status status-finished';
         setTimeout(() => {
           this.winnerText.textContent = '🤝 НИЧЬЯ!';
-          this.winnerMessage.textContent = 'Обоих поймали призраки!';
+          this.winnerMessage.textContent = 'Обоих поймали призраки или время вышло!';
           this.winnerOverlay.style.display = 'flex';
         }, 500);
         this.pauseBtn.disabled = true;
+        this.checkResetTournament();
         return;
       }
       const isPlayerWinner = winner === 'player';
+      if (isPlayerWinner) {
+        this.playerScore += 3;
+        this.playerWins += 1;
+        this.playerGames += 1;
+        this.computerGames += 1;
+      } else {
+        this.computerScore += 3;
+        this.computerWins += 1;
+        this.playerGames += 1;
+        this.computerGames += 1;
+      }
+      this.saveTournamentData();
+      this.updateTournamentTable();
       this.updateStatus('finished');
       if (isPlayerWinner) {
         this.playerStatusEl.textContent = 'ПОБЕДИТЕЛЬ!';
@@ -853,6 +893,7 @@
         this.winnerOverlay.style.display = 'flex';
       }, 500);
       this.pauseBtn.disabled = true;
+      this.checkResetTournament();
     }
 
     updateStatus(status) {
@@ -878,6 +919,29 @@
           const minutes = Math.floor(elapsed / 60);
           const seconds = elapsed % 60;
           this.timerEl.textContent = `Время: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          // Завершить игру, если прошло 2 минуты
+          if (elapsed >= 120) {
+            this.isGameActive = false;
+            this.clearAllIntervals();
+            this.playerStatusEl.textContent = 'НИЧЬЯ!';
+            this.playerStatusEl.className = 'player-status status-finished';
+            this.computerStatusEl.textContent = 'НИЧЬЯ!';
+            this.computerStatusEl.className = 'player-status status-finished';
+            setTimeout(() => {
+              this.winnerText.textContent = '🤝 НИЧЬЯ!';
+              this.winnerMessage.textContent = 'Время вышло! Никто не успел выбраться из лабиринта.';
+              this.winnerOverlay.style.display = 'flex';
+            }, 500);
+            this.pauseBtn.disabled = true;
+            // Сохраняем результат ничьей
+            this.playerScore += 1;
+            this.computerScore += 1;
+            this.playerGames += 1;
+            this.computerGames += 1;
+            this.saveTournamentData();
+            this.updateTournamentTable();
+            this.checkResetTournament();
+          }
         }
       }, 1000);
     }
@@ -1272,12 +1336,102 @@
       this.renderMazes();
       if (this.lifeTimeout) clearTimeout(this.lifeTimeout);
     }
+
+    loadTournamentData() {
+      const data = JSON.parse(localStorage.getItem('mazeTournamentData') || '{}');
+      this.playerScore = data.playerScore || 0;
+      this.computerScore = data.computerScore || 0;
+      this.playerWins = data.playerWins || 0;
+      this.computerWins = data.computerWins || 0;
+      this.playerGames = data.playerGames || 0;
+      this.computerGames = data.computerGames || 0;
+    }
+
+    saveTournamentData() {
+      localStorage.setItem('mazeTournamentData', JSON.stringify({
+        playerScore: this.playerScore,
+        computerScore: this.computerScore,
+        playerWins: this.playerWins,
+        computerWins: this.computerWins,
+        playerGames: this.playerGames,
+        computerGames: this.computerGames
+      }));
+    }
+
+    resetTournamentData() {
+      this.playerScore = 0;
+      this.computerScore = 0;
+      this.playerWins = 0;
+      this.computerWins = 0;
+      this.playerGames = 0;
+      this.computerGames = 0;
+      this.saveTournamentData();
+      this.updateTournamentTable();
+    }
+
+    updateTournamentTable() {
+      document.getElementById('playerScore').textContent = this.playerScore;
+      document.getElementById('computerScore').textContent = this.computerScore;
+      document.getElementById('playerWins').textContent = this.playerWins;
+      document.getElementById('computerWins').textContent = this.computerWins;
+      document.getElementById('playerGames').textContent = this.playerGames;
+      document.getElementById('computerGames').textContent = this.computerGames;
+      const totalGames = Math.max(this.playerGames, this.computerGames);
+      document.getElementById('gamesCountInfo').textContent = `Сыграно игр: ${totalGames} / ${this.maxGames}`;
+    }
+
+    checkResetTournament() {
+      const totalGames = Math.max(this.playerGames, this.computerGames);
+      if (totalGames >= this.maxGames) {
+        setTimeout(() => {
+          alert('Турнир завершён! Результаты будут сброшены.');
+          this.resetTournamentData();
+        }, 1000);
+      }
+    }
   }
 
   // Запуск игры
   window.addEventListener('DOMContentLoaded', () => {
-    new MazeGame();
+    window.mazeGameInstance = new MazeGame();
+    // newGame НЕ вызываем автоматически!
   });
 </script>
+<!-- Турнирная таблица -->
+<div class="tournament-table">
+  <table style="width:100%; background:rgba(255,255,255,0.12); overflow:hidden; border-collapse:collapse;">
+    <thead>
+
+    </thead>
+    <tbody>
+      <tr>
+        <td>Игрок</td>
+        <td id="playerScore">
+        <td id="playerWins">
+        <td id="playerGames">
+      </tr>
+      <tr>
+        <td>Компьютер</td>
+        <td id="computerScore">
+        <td id="computerWins">
+        <td id="computerGames">
+      </tr>
+    </tbody>
+  </table>
+  <div id="gamesCountInfo"</div>
+</div>
+
+<!-- Меню з посиланням на турнірну таблицю -->
+<nav style="margin-bottom: 18px;">
+  <a href="index.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">Головна</a>
+  <a href="standings.html" style="color:#fff; font-weight:bold; text-decoration:none;">Турнірна таблиця</a>
+</nav>
+
+<div class="instructions">
+  <h3>🎯 Инструкции</h3>
+  <p><strong>Цель:</strong> Доберитесь до красного квадрата (выход) быстрее компьютера!</p>
+  <p><strong>Управление:</strong> Используйте стрелки ←↑↓→ или WASD для движения</p>
+  <p><strong>Правила:</strong> Зеленый квадрат - старт, красный - финиш. Нельзя проходить через стены!</p>
+</div>
 </body>
 </html>

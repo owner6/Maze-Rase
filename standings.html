@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Турнирная таблица — Гонка в Лабиринте</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 2.2em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    nav {
+      margin-bottom: 18px;
+    }
+    nav a {
+      color: #fff;
+      font-weight: bold;
+      margin-right: 18px;
+      text-decoration: none;
+    }
+    .tournament-table {
+      width: 100%;
+      max-width: 500px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 12px;
+      overflow: hidden;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+    .tournament-table th, .tournament-table td {
+      padding: 10px;
+      color: #fff;
+      text-align: center;
+    }
+    .tournament-table thead tr {
+      background: rgba(0,0,0,0.15);
+    }
+    .btn {
+      padding: 12px 24px;
+      background: linear-gradient(45deg, #666, #888);
+      border: none;
+      border-radius: 25px;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      width: 100%;
+      margin-top: 10px;
+    }
+    .btn:hover {
+      background: linear-gradient(45deg, #888, #666);
+      transform: translateY(-2px);
+    }
+    #gamesCountInfo {
+      margin-top: 8px;
+      color: #fff;
+      text-align: right;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Турнирная таблица</h1>
+    <p>Результаты турнира по гонке в лабиринте</p>
+  </div>
+  <nav>
+    <a href="index.html">Главная</a>
+    <a href="standings.html">Турнирная таблица</a>
+  </nav>
+  <table class="tournament-table">
+    <thead>
+      <tr>
+        <th>Игрок</th>
+        <th>Очки</th>
+        <th>Побед</th>
+        <th>Игр</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Игрок</td>
+        <td id="playerScore">0</td>
+        <td id="playerWins">0</td>
+        <td id="playerGames">0</td>
+      </tr>
+      <tr>
+        <td>Компьютер</td>
+        <td id="computerScore">0</td>
+        <td id="computerWins">0</td>
+        <td id="computerGames">0</td>
+      </tr>
+    </tbody>
+  </table>
+  <div id="gamesCountInfo"></div>
+  <button id="resetTournamentBtn" class="btn">Сбросить турнир</button>
+  <script>
+    const maxGames = 38;
+    function loadTournamentData() {
+      const data = JSON.parse(localStorage.getItem('mazeTournamentData') || '{}');
+      return {
+        playerScore: data.playerScore || 0,
+        computerScore: data.computerScore || 0,
+        playerWins: data.playerWins || 0,
+        computerWins: data.computerWins || 0,
+        playerGames: data.playerGames || 0,
+        computerGames: data.computerGames || 0
+      };
+    }
+    function updateTournamentTable() {
+      const d = loadTournamentData();
+      document.getElementById('playerScore').textContent = d.playerScore;
+      document.getElementById('computerScore').textContent = d.computerScore;
+      document.getElementById('playerWins').textContent = d.playerWins;
+      document.getElementById('computerWins').textContent = d.computerWins;
+      document.getElementById('playerGames').textContent = d.playerGames;
+      document.getElementById('computerGames').textContent = d.computerGames;
+      const totalGames = Math.max(d.playerGames, d.computerGames);
+      document.getElementById('gamesCountInfo').textContent = `Сыграно игр: ${totalGames} / ${maxGames}`;
+    }
+    document.getElementById('resetTournamentBtn').addEventListener('click', () => {
+      if (confirm('Вы уверены, что хотите сбросить результаты турнира?')) {
+        localStorage.removeItem('mazeTournamentData');
+        updateTournamentTable();
+      }
+    });
+    updateTournamentTable();
+  </script>
+</body>
+</html>
