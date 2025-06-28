@@ -137,6 +137,14 @@
     .ghost-pink { background: #ff79c6; box-shadow: 0 0 8px #ff79c6; }
     .ghost-cyan { background: #8be9fd; box-shadow: 0 0 8px #8be9fd; }
     .ghost-orange { background: #ffb86c; box-shadow: 0 0 8px #ffb86c; }
+    .ghost-purple {
+      background: #bd93f9 !important;
+      box-shadow: 0 0 8px #bd93f9;
+    }
+    .ghost-green {
+      background: #50fa7b !important;
+      box-shadow: 0 0 8px #50fa7b;
+    }
 
     .timer {
       font-size: 1.2em;
@@ -409,6 +417,7 @@
       this.playerGames = 0;
       this.computerGames = 0;
       this.maxGames = 38;
+      this.ghostColorChangeInterval = null;
       this.loadTournamentData();
       this.updateTournamentTable();
       this.initializeElements();
@@ -453,6 +462,7 @@
       if (this.ghostMoveInterval) clearInterval(this.ghostMoveInterval);
       if (this.computerGhostMoveInterval) clearInterval(this.computerGhostMoveInterval);
       if (this.eventInterval) clearInterval(this.eventInterval);
+      if (this.ghostColorChangeInterval) clearInterval(this.ghostColorChangeInterval);
     }
 
     newGame() {
@@ -489,16 +499,35 @@
       this.computerMaze = computerGenerator.maze.map(row => [...row]);
 
       const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-      this.ghosts = [
-        { pos: this.getRandomEmptyPosition(this.playerMaze), state: 'patrolling', direction: directions[0], path: [], pathIndex: 0, colorClass: 'ghost-pink' },
-        { pos: this.getRandomEmptyPosition(this.playerMaze), state: 'patrolling', direction: directions[1], path: [], pathIndex: 0, colorClass: 'ghost-cyan' },
-        { pos: this.getRandomEmptyPosition(this.playerMaze), state: 'patrolling', direction: directions[2], path: [], pathIndex: 0, colorClass: 'ghost-orange' }
-      ];
-      this.computerGhosts = [
-        { pos: this.getRandomEmptyPosition(this.computerMaze), state: 'patrolling', direction: directions[0], path: [], pathIndex: 0, colorClass: 'ghost-pink' },
-        { pos: this.getRandomEmptyPosition(this.computerMaze), state: 'patrolling', direction: directions[1], path: [], pathIndex: 0, colorClass: 'ghost-cyan' },
-        { pos: this.getRandomEmptyPosition(this.computerMaze), state: 'patrolling', direction: directions[2], path: [], pathIndex: 0, colorClass: 'ghost-orange' }
-      ];
+      const ghostColors = ['ghost-pink', 'ghost-cyan', 'ghost-orange', 'ghost-purple', 'ghost-green'];
+      
+      // Инициализация призраков игрока с разными цветами (всегда 2-3 призрака)
+      this.ghosts = [];
+      const playerGhostCount = Math.floor(Math.random() * 2) + 2; // 2-3 призрака
+      for (let i = 0; i < playerGhostCount; i++) {
+        this.ghosts.push({
+          pos: this.getRandomEmptyPosition(this.playerMaze),
+          state: 'patrolling',
+          direction: directions[Math.floor(Math.random() * directions.length)],
+          path: [],
+          pathIndex: 0,
+          colorClass: ghostColors[Math.floor(Math.random() * ghostColors.length)]
+        });
+      }
+      
+      // Инициализация призраков компьютера с разными цветами (всегда 2-3 призрака)
+      this.computerGhosts = [];
+      const computerGhostCount = Math.floor(Math.random() * 2) + 2; // 2-3 призрака
+      for (let i = 0; i < computerGhostCount; i++) {
+        this.computerGhosts.push({
+          pos: this.getRandomEmptyPosition(this.computerMaze),
+          state: 'patrolling',
+          direction: directions[Math.floor(Math.random() * directions.length)],
+          path: [],
+          pathIndex: 0,
+          colorClass: ghostColors[Math.floor(Math.random() * ghostColors.length)]
+        });
+      }
 
       this.renderMazes();
       this.updateStatus('playing');
@@ -508,6 +537,7 @@
       this.startGhostAI();
       this.startComputerGhostAI();
       this.startRandomMazeEvents();
+      this.startGhostColorChange();
 
       this.newGameBtn.textContent = '🔄 Новая игра';
       this.pauseBtn.disabled = false;
@@ -517,7 +547,7 @@
     renderMazes() {
       this.renderMaze(this.playerMazeEl, this.playerMaze, this.playerPos, 'player');
       this.renderMaze(this.computerMazeEl, this.computerMaze, this.computerPos, 'computer');
-      // Отображение количества жизней
+      // Отображение количества жизней и призраков
       let playerLivesEl = document.getElementById('playerLives');
       let computerLivesEl = document.getElementById('computerLives');
       if (!playerLivesEl) {
@@ -534,8 +564,8 @@
         computerLivesEl.style.fontSize = '1.1em';
         this.computerMazeEl.parentElement.appendChild(computerLivesEl);
       }
-      playerLivesEl.innerHTML = 'Жизни: ' + '❤️'.repeat(this.playerLives);
-      computerLivesEl.innerHTML = 'Жизни: ' + '❤️'.repeat(this.computerLives);
+      playerLivesEl.innerHTML = `Жизни: ${'❤️'.repeat(this.playerLives)} | Призраки: 👻 ${this.ghosts.length}`;
+      computerLivesEl.innerHTML = `Жизни: ${'❤️'.repeat(this.computerLives)} | Призраки: 👻 ${this.computerGhosts.length}`;
     }
 
     renderMaze(container, maze, pos, playerType) {
@@ -1078,6 +1108,12 @@
         }
       }
       collisionCallback();
+      // Проверяем взаимодействия призраков
+      if (ghosts === this.ghosts) {
+        this.checkGhostInteractions(this.ghosts, this.playerMaze);
+      } else if (ghosts === this.computerGhosts) {
+        this.checkGhostInteractions(this.computerGhosts, this.computerMaze);
+      }
       this.renderMazes();
     }
 
@@ -1411,6 +1447,102 @@
           alert('Турнир завершён! Результаты будут сброшены.');
           this.resetTournamentData();
         }, 1000);
+      }
+    }
+
+    getRandomColorClass() {
+      const ghostColors = ['ghost-pink', 'ghost-cyan', 'ghost-orange', 'ghost-purple', 'ghost-green'];
+      return ghostColors[Math.floor(Math.random() * ghostColors.length)];
+    }
+
+    startGhostColorChange() {
+      if (this.ghostColorChangeInterval) {
+        clearInterval(this.ghostColorChangeInterval);
+      }
+      this.ghostColorChangeInterval = setInterval(() => {
+        if (!this.isGameActive || this.isPaused) {
+          return;
+        }
+        // Изменяем цвет случайного призрака игрока
+        if (this.ghosts.length > 0) {
+          const randomGhostIndex = Math.floor(Math.random() * this.ghosts.length);
+          const ghostToChange = this.ghosts[randomGhostIndex];
+          ghostToChange.colorClass = this.getRandomColorClass();
+        }
+        // Изменяем цвет случайного призрака компьютера
+        if (this.computerGhosts.length > 0) {
+          const randomGhostIndex = Math.floor(Math.random() * this.computerGhosts.length);
+          const ghostToChange = this.computerGhosts[randomGhostIndex];
+          ghostToChange.colorClass = this.getRandomColorClass();
+        }
+        this.renderMazes();
+      }, 10000);
+    }
+
+    checkGhostInteractions(ghosts, maze) {
+      const toRemove = new Set();
+      const newGhosts = [];
+      const minGhosts = 1;
+      const maxGhosts = 4047;
+
+      for (let i = 0; i < ghosts.length; i++) {
+        if (toRemove.has(i)) continue;
+
+        for (let j = i + 1; j < ghosts.length; j++) {
+          if (toRemove.has(j)) continue;
+
+          const g1 = ghosts[i];
+          const g2 = ghosts[j];
+
+          const isTouching = Math.abs(g1.pos[0] - g2.pos[0]) + Math.abs(g1.pos[1] - g2.pos[1]) <= 1;
+
+          // Взаимодействие происходит только если цвета РАЗНЫЕ
+          if (isTouching && g1.colorClass !== g2.colorClass) {
+            
+            // 50% шанс на рождение, 50% на гибель
+            if (Math.random() < 0.5) {
+              // --- РОЖДЕНИЕ ---
+              if (ghosts.length + newGhosts.length < maxGhosts) {
+                newGhosts.push({
+                  pos: this.getRandomEmptyPosition(maze),
+                  state: 'patrolling',
+                  direction: [0, 1],
+                  path: [],
+                  pathIndex: 0,
+                  colorClass: this.getRandomColorClass() // Новый призрак получает случайный цвет
+                });
+              }
+            } else {
+              // --- ГИБЕЛЬ ---
+              if (ghosts.length - toRemove.size > minGhosts) {
+                // Удаляем одного из двух столкнувшихся случайным образом
+                toRemove.add(Math.random() < 0.5 ? i : j);
+              }
+            }
+            
+            // Предотвращаем дальнейшие взаимодействия для этой пары в текущем тике
+            // и переходим к следующему главному призраку (i)
+            break; 
+          }
+        }
+      }
+
+      // Применяем все изменения после итерации
+      const filteredGhosts = ghosts.filter((_, index) => !toRemove.has(index));
+      ghosts.length = 0;
+      ghosts.push(...filteredGhosts);
+      ghosts.push(...newGhosts);
+
+      // Гарантируем, что популяция не вымрет полностью
+      while (ghosts.length < minGhosts) {
+        ghosts.push({
+          pos: this.getRandomEmptyPosition(maze),
+          state: 'patrolling',
+          direction: [0, 1],
+          path: [],
+          pathIndex: 0,
+          colorClass: this.getRandomColorClass()
+        });
       }
     }
   }
