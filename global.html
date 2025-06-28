@@ -100,6 +100,59 @@
   background: #50fa7b !important;
   box-shadow: 0 0 8px #50fa7b;
 }
+.pickaxe-cell {
+  background: gold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #bfa100;
+  z-index: 2;
+}
+
+.stake-cell {
+  background: #8B4513;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #654321;
+  z-index: 2;
+}
+
+.event-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  z-index: 1000;
+  animation: slideInRight 0.5s ease-out;
+  max-width: 300px;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
   </style>
 </head>
 <body>
@@ -200,9 +253,20 @@ class GlobalMazeGame {
     this.ghosts = [];
     this.ghostMoveInterval = null;
     this.ghostColorChangeInterval = null;
+    this.eventInterval = null; // Добавляем переменную для интервала случайных событий
     this.hostages = [];
     this.hostagesCount = 1;
     this.playerScore = 0;
+    this.pickaxePos = null;
+    this.pickaxeVisible = false;
+    this.pickaxeTimeout = null;
+    this.pickaxeRespawnTimeout = null;
+    this.playerHasPickaxe = false;
+    this.stakePos = null;
+    this.stakeVisible = false;
+    this.stakeTimeout = null;
+    this.stakeRespawnTimeout = null;
+    this.playerStakes = 0; // Количество осиновых кольев у игрока
     this.initializeElements();
     this.setupEventListeners();
   }
@@ -232,6 +296,11 @@ class GlobalMazeGame {
     if (this.playerMoveInterval) { clearInterval(this.playerMoveInterval); this.playerMoveInterval = null; }
     if (this.ghostMoveInterval) { clearInterval(this.ghostMoveInterval); this.ghostMoveInterval = null; }
     if (this.ghostColorChangeInterval) { clearInterval(this.ghostColorChangeInterval); this.ghostColorChangeInterval = null; }
+    if (this.eventInterval) { clearTimeout(this.eventInterval); this.eventInterval = null; }
+    if (this.pickaxeTimeout) { clearTimeout(this.pickaxeTimeout); this.pickaxeTimeout = null; }
+    if (this.pickaxeRespawnTimeout) { clearTimeout(this.pickaxeRespawnTimeout); this.pickaxeRespawnTimeout = null; }
+    if (this.stakeTimeout) { clearTimeout(this.stakeTimeout); this.stakeTimeout = null; }
+    if (this.stakeRespawnTimeout) { clearTimeout(this.stakeRespawnTimeout); this.stakeRespawnTimeout = null; }
   }
   newGame() {
     this.clearAllIntervals();
@@ -263,6 +332,14 @@ class GlobalMazeGame {
       }
     }
     this.playerScore = 0;
+    // Сброс переменных топора
+    this.pickaxePos = null;
+    this.pickaxeVisible = false;
+    this.playerHasPickaxe = false;
+    // Сброс переменных осинового кола
+    this.stakePos = null;
+    this.stakeVisible = false;
+    this.playerStakes = 0;
     // Инициализация призраков
     const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
     const ghostColors = ['ghost-pink', 'ghost-cyan', 'ghost-orange', 'ghost-purple', 'ghost-green'];
@@ -292,6 +369,9 @@ class GlobalMazeGame {
     this.startPlayerAutoMove();
     this.startGhostAI();
     this.startGhostColorChange();
+    this.startRandomMazeEvents();
+    this.spawnPickaxeWithDelay();
+    this.spawnStakeWithDelay();
     this.newGameBtn.textContent = '🔄 Новая игра';
     this.pauseBtn.disabled = false;
     this.winnerOverlay.style.display = 'none';
@@ -324,6 +404,18 @@ class GlobalMazeGame {
           cell.innerHTML = '<span style="font-size:12px; color:white;">👤</span>';
         }
         
+        // Отображение топора
+        if (this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) {
+          cell.classList.add('pickaxe-cell');
+          cell.innerHTML = '<span style="font-size:12px;">🪓</span>';
+        }
+        
+        // Отображение осинового кола
+        if (this.stakeVisible && this.stakePos && row === this.stakePos[0] && col === this.stakePos[1]) {
+          cell.classList.add('stake-cell');
+          cell.innerHTML = '<span style="font-size:12px;">🪵</span>';
+        }
+        
         if (row === Math.floor(this.size/2) && col === Math.floor(this.size/2)) cell.classList.add('start');
         
         this.mazeEl.appendChild(cell);
@@ -339,7 +431,9 @@ class GlobalMazeGame {
     const ghostCount = this.ghosts.length;
     this.scoreBar.innerHTML = `
       Заложники: <span style='color:#3498db'>${this.playerScore}/${this.hostagesCount}</span> |
-      Призраки: <span style='color:#ffb86c'>${ghostCount}</span>
+      Призраки: <span style='color:#ffb86c'>${ghostCount}</span> |
+      Топор: <span style='color:${this.playerHasPickaxe ? 'gold' : '#666'}'>${this.playerHasPickaxe ? '🪓' : '❌'}</span> |
+      Колья: <span style='color:#8B4513'>${this.playerStakes} 🪵</span>
     `;
   }
   handleKeyPress(e) {
@@ -355,6 +449,11 @@ class GlobalMazeGame {
       e.preventDefault();
       this.playerDirection = direction;
     }
+    
+    // Использовать топор (E)
+    if (e.code === 'KeyE' && this.playerHasPickaxe) {
+      this.tryBreakWall();
+    }
   }
   startPlayerAutoMove() {
     if (this.playerMoveInterval) { clearInterval(this.playerMoveInterval); this.playerMoveInterval = null; }
@@ -365,6 +464,8 @@ class GlobalMazeGame {
       if (this.isValidMove(newRow, newCol)) {
         this.playerPos = [newRow, newCol];
         this.checkHostagePickup();
+        this.checkPickaxePickup();
+        this.checkStakePickup();
         this.renderMaze();
         this.checkWin();
       }
@@ -385,6 +486,21 @@ class GlobalMazeGame {
         }
         break;
       }
+    }
+  }
+  
+  checkPickaxePickup() {
+    if (this.pickaxeVisible && this.pickaxePos && this.playerPos[0] === this.pickaxePos[0] && this.playerPos[1] === this.pickaxePos[1]) {
+      this.playerHasPickaxe = true;
+      this.hidePickaxe();
+      this.renderMaze();
+    }
+  }
+  checkStakePickup() {
+    if (this.stakeVisible && this.stakePos && this.playerPos[0] === this.stakePos[0] && this.playerPos[1] === this.stakePos[1]) {
+      this.playerStakes++;
+      this.hideStake();
+      this.renderMaze();
     }
   }
   // ИЗМЕНЕНО: Новая логика победы
@@ -585,19 +701,30 @@ class GlobalMazeGame {
     return Math.abs(pos[0] - goal[0]) + Math.abs(pos[1] - goal[1]);
   }
   checkCollision() {
-    for (const ghost of this.ghosts) {
+    for (let i = 0; i < this.ghosts.length; i++) {
+      const ghost = this.ghosts[i];
       if (ghost.pos[0] === this.playerPos[0] && ghost.pos[1] === this.playerPos[1]) {
-        this.isGameActive = false;
-        this.clearAllIntervals();
-        this.playerStatusEl.textContent = 'ПОЙМАН!';
-        this.playerStatusEl.className = 'player-status status-finished';
-        setTimeout(() => {
-          this.winnerText.textContent = '👻 ВАС ПОЙМАЛИ!';
-          this.winnerMessage.textContent = 'Призраки оказались проворнее. Попробуйте снова!';
-          this.winnerOverlay.style.display = 'flex';
-        }, 500);
-        this.pauseBtn.disabled = true;
-        return;
+        // Если у игрока есть осиновые колья
+        if (this.playerStakes > 0) {
+          // Убиваем призрака и тратим один кол
+          this.ghosts.splice(i, 1);
+          this.playerStakes--;
+          this.renderMaze();
+          return; // Выходим из цикла, так как массив изменился
+        } else {
+          // Если кольев нет - игрок пойман
+          this.isGameActive = false;
+          this.clearAllIntervals();
+          this.playerStatusEl.textContent = 'ПОЙМАН!';
+          this.playerStatusEl.className = 'player-status status-finished';
+          setTimeout(() => {
+            this.winnerText.textContent = '👻 ВАС ПОЙМАЛИ!';
+            this.winnerMessage.textContent = 'Призраки оказались проворнее. Попробуйте снова!';
+            this.winnerOverlay.style.display = 'flex';
+          }, 500);
+          this.pauseBtn.disabled = true;
+          return;
+        }
       }
     }
   }
@@ -688,6 +815,199 @@ checkGhostInteractions() {
       }, 10000);
   }
 
+  startRandomMazeEvents() {
+    this.scheduleNextRandomEvent();
+  }
+
+  scheduleNextRandomEvent() {
+    if (!this.isGameActive || this.isPaused) return;
+    
+    // Случайное время до следующего события: 3-120 секунд
+    const delay = 3000 + Math.random() * 117000;
+    
+    this.eventInterval = setTimeout(() => {
+      if (!this.isGameActive || this.isPaused) return;
+      this.randomMazeEvent();
+      this.renderMaze();
+      // Планируем следующее событие
+      this.scheduleNextRandomEvent();
+    }, delay);
+  }
+
+  randomMazeEvent() {
+    // 50/50: добавить или удалить стену
+    const isAdd = Math.random() < 0.5;
+    const size = this.size;
+    const forbiddenSet = new Set();
+    
+    // Добавляем запрещенные позиции: игрок, призраки, заложники, старт, выход
+    forbiddenSet.add(this.playerPos[0] + ',' + this.playerPos[1]);
+    this.ghosts.forEach(ghost => {
+      forbiddenSet.add(ghost.pos[0] + ',' + ghost.pos[1]);
+    });
+    this.hostages.forEach(hostage => {
+      forbiddenSet.add(hostage[0] + ',' + hostage[1]);
+    });
+    forbiddenSet.add(Math.floor(this.size/2) + ',' + Math.floor(this.size/2)); // Старт
+    forbiddenSet.add(this.endPos[0] + ',' + this.endPos[1]); // Выход
+    if (this.pickaxeVisible && this.pickaxePos) {
+      forbiddenSet.add(this.pickaxePos[0] + ',' + this.pickaxePos[1]); // Топор
+    }
+    if (this.stakeVisible && this.stakePos) {
+      forbiddenSet.add(this.stakePos[0] + ',' + this.stakePos[1]); // Осиновый кол
+    }
+    
+    // Случайная попытка до 100 раз найти подходящую клетку
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const row = Math.floor(Math.random() * (size - 2)) + 1;
+      const col = Math.floor(Math.random() * (size - 2)) + 1;
+      const key = row + ',' + col;
+      if (forbiddenSet.has(key)) continue;
+      if (isAdd && this.maze[row][col] === 0) {
+        this.maze[row][col] = 1;
+        this.showEventNotification('🧱 Появилась новая стена!');
+        break;
+      }
+      if (!isAdd && this.maze[row][col] === 1) {
+        this.maze[row][col] = 0;
+        this.showEventNotification('🕳️ Стена исчезла!');
+        break;
+      }
+    }
+  }
+
+  spawnPickaxeWithDelay() {
+    // Появится через 3-7 секунд
+    const delay = 3000 + Math.random() * 4000;
+    this.pickaxeRespawnTimeout = setTimeout(() => {
+      this.spawnPickaxe();
+    }, delay);
+  }
+
+  spawnPickaxe() {
+    if (!this.isGameActive) return;
+    // Найти случайную пустую клетку (не стена, не старт/выход, не игрок/призраки/заложники)
+    let row, col;
+    let attempts = 0;
+    do {
+      row = Math.floor(Math.random() * (this.size - 2)) + 1;
+      col = Math.floor(Math.random() * (this.size - 2)) + 1;
+      attempts++;
+    } while (
+      this.maze[row][col] !== 0 ||
+      (row === Math.floor(this.size/2) && col === Math.floor(this.size/2)) || // Старт
+      (row === this.endPos[0] && col === this.endPos[1]) || // Выход
+      (row === this.playerPos[0] && col === this.playerPos[1]) || // Игрок
+      this.ghosts.some(g => g.pos[0] === row && g.pos[1] === col) || // Призраки
+      this.hostages.some(h => h[0] === row && h[1] === col) || // Заложники
+      (this.stakeVisible && this.stakePos && row === this.stakePos[0] && col === this.stakePos[1]) // Осиновый кол
+      && attempts < 100
+    );
+    this.pickaxePos = [row, col];
+    this.pickaxeVisible = true;
+    this.renderMaze();
+    // Исчезнет через 6-10 секунд, если не подобрали
+    const duration = 6000 + Math.random() * 4000;
+    this.pickaxeTimeout = setTimeout(() => {
+      this.hidePickaxe();
+      this.spawnPickaxeWithDelay();
+    }, duration);
+  }
+
+  hidePickaxe() {
+    this.pickaxeVisible = false;
+    this.pickaxePos = null;
+    this.renderMaze();
+    if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout);
+  }
+
+  tryBreakWall() {
+    // Можно разбить одну стену вокруг игрока (вверх, вниз, влево, вправо)
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr,dc] of dirs) {
+      const r = this.playerPos[0] + dr;
+      const c = this.playerPos[1] + dc;
+      if (r >= 0 && r < this.size && c >= 0 && c < this.size && this.maze[r][c] === 1) {
+        this.maze[r][c] = 0;
+        this.playerHasPickaxe = false;
+        this.renderMaze();
+        // После использования топора — появится новый через время
+        this.spawnPickaxeWithDelay();
+        break;
+      }
+    }
+  }
+
+  spawnStakeWithDelay() {
+    // Появится через 3-7 секунд
+    const delay = 3000 + Math.random() * 4000;
+    this.stakeRespawnTimeout = setTimeout(() => {
+      this.spawnStake();
+    }, delay);
+  }
+
+  spawnStake() {
+    if (!this.isGameActive) return;
+    // Найти случайную пустую клетку (не стена, не старт/выход, не игрок/призраки/заложники)
+    let row, col;
+    let attempts = 0;
+    do {
+      row = Math.floor(Math.random() * (this.size - 2)) + 1;
+      col = Math.floor(Math.random() * (this.size - 2)) + 1;
+      attempts++;
+    } while (
+      this.maze[row][col] !== 0 ||
+      (row === Math.floor(this.size/2) && col === Math.floor(this.size/2)) || // Старт
+      (row === this.endPos[0] && col === this.endPos[1]) || // Выход
+      (row === this.playerPos[0] && col === this.playerPos[1]) || // Игрок
+      this.ghosts.some(g => g.pos[0] === row && g.pos[1] === col) || // Призраки
+      this.hostages.some(h => h[0] === row && h[1] === col) || // Заложники
+      (this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) // Топор
+      && attempts < 100
+    );
+    this.stakePos = [row, col];
+    this.stakeVisible = true;
+    this.renderMaze();
+    // Исчезнет через 6-10 секунд, если не подобрали
+    const duration = 6000 + Math.random() * 4000;
+    this.stakeTimeout = setTimeout(() => {
+      this.hideStake();
+      this.spawnStakeWithDelay();
+    }, duration);
+  }
+
+  hideStake() {
+    this.stakeVisible = false;
+    this.stakePos = null;
+    this.renderMaze();
+    if (this.stakeTimeout) clearTimeout(this.stakeTimeout);
+  }
+
+  showEventNotification(message) {
+    // Удаляем предыдущее уведомление, если оно есть
+    const existingNotification = document.querySelector('.event-notification');
+    if (existingNotification) {
+      existingNotification.remove();
+    }
+
+    // Создаем новое уведомление
+    const notification = document.createElement('div');
+    notification.className = 'event-notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Удаляем уведомление через 3 секунды
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'fadeOut 0.5s ease-out';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.remove();
+          }
+        }, 500);
+      }
+    }, 3000);
+  }
 }
 window.addEventListener('DOMContentLoaded', () => {
   window.globalMazeGame = new GlobalMazeGame();
