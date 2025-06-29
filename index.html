@@ -705,6 +705,16 @@
     }
 
     moveComputer() {
+      // ВИПРАВЛЕННЯ: Перевіряємо валідність поточного шляху
+      if (this.computerPath && this.computerPathIndex < this.computerPath.length) {
+        const nextPos = this.computerPath[this.computerPathIndex];
+        if (!this.isValidMove(nextPos[0], nextPos[1], this.computerMaze)) {
+          // Шлях більше не валідний, перераховуємо
+          this.computerPath = [];
+          this.computerPathIndex = 0;
+        }
+      }
+
       // Проверяем, видит ли компьютер призрака
       const ghost = this.getVisibleGhostForComputer();
       if (ghost) {
@@ -1043,6 +1053,16 @@
 
     moveGhostsGeneric(ghosts, maze, targetPos, collisionCallback) {
       for (const ghost of ghosts) {
+        // ВИПРАВЛЕННЯ: Перевіряємо валідність поточного шляху призрака
+        if (ghost.path && ghost.pathIndex < ghost.path.length) {
+          const nextPos = ghost.path[ghost.pathIndex];
+          if (!this.isValidMove(nextPos[0], nextPos[1], maze)) {
+            // Шлях більше не валідний, перераховуємо
+            ghost.path = [];
+            ghost.pathIndex = 0;
+          }
+        }
+
         // Проверяем, видит ли призрак цель
         if (this.canSeeTarget(ghost, maze, targetPos)) {
           ghost.state = 'chasing';
@@ -1254,10 +1274,44 @@
         if (forbiddenSet.has(key)) continue;
         if (isAdd && maze[row][col] === 0) {
           maze[row][col] = 1;
+          // ВИПРАВЛЕННЯ: Якщо це лабіринт комп'ютера, перераховуємо його шлях
+          if (maze === this.computerMaze) {
+            this.computerPath = [];
+            this.computerPathIndex = 0;
+            // ВИПРАВЛЕННЯ: Також перераховуємо шляхи призраків комп'ютера
+            this.computerGhosts.forEach(ghost => {
+              ghost.path = [];
+              ghost.pathIndex = 0;
+            });
+          }
+          // ВИПРАВЛЕННЯ: Якщо це лабіринт гравця, перераховуємо шляхи призраків гравця
+          if (maze === this.playerMaze) {
+            this.ghosts.forEach(ghost => {
+              ghost.path = [];
+              ghost.pathIndex = 0;
+            });
+          }
           break;
         }
         if (!isAdd && maze[row][col] === 1) {
           maze[row][col] = 0;
+          // ВИПРАВЛЕННЯ: Якщо це лабіринт комп'ютера, перераховуємо його шлях
+          if (maze === this.computerMaze) {
+            this.computerPath = [];
+            this.computerPathIndex = 0;
+            // ВИПРАВЛЕННЯ: Також перераховуємо шляхи призраків комп'ютера
+            this.computerGhosts.forEach(ghost => {
+              ghost.path = [];
+              ghost.pathIndex = 0;
+            });
+          }
+          // ВИПРАВЛЕННЯ: Якщо це лабіринт гравця, перераховуємо шляхи призраків гравця
+          if (maze === this.playerMaze) {
+            this.ghosts.forEach(ghost => {
+              ghost.path = [];
+              ghost.pathIndex = 0;
+            });
+          }
           break;
         }
       }
@@ -1317,6 +1371,15 @@
         if (r >= 0 && r < this.size && c >= 0 && c < this.size && this.playerMaze[r][c] === 1) {
           this.playerMaze[r][c] = 0;
           this.playerHasPickaxe = false;
+          // ВИПРАВЛЕННЯ: Якщо гравець розбив стіну, комп'ютер може перерахувати свій шлях
+          // оскільки лабіринт змінився
+          this.computerPath = [];
+          this.computerPathIndex = 0;
+          // ВИПРАВЛЕННЯ: Також перераховуємо шляхи призраків гравця
+          this.ghosts.forEach(ghost => {
+            ghost.path = [];
+            ghost.pathIndex = 0;
+          });
           this.renderMazes();
           // После использования кирки — появится новая через время
           this.spawnPickaxeWithDelay();
@@ -1344,6 +1407,14 @@
             // Разбиваем эту стену
             this.computerMaze[r][c] = 0;
             this.computerHasPickaxe = false;
+            // ВИПРАВЛЕННЯ: Перераховуємо шлях після розбиття стіни
+            this.computerPath = [];
+            this.computerPathIndex = 0;
+            // ВИПРАВЛЕННЯ: Також перераховуємо шляхи призраків комп'ютера
+            this.computerGhosts.forEach(ghost => {
+              ghost.path = [];
+              ghost.pathIndex = 0;
+            });
             this.spawnPickaxeWithDelay();
             break;
           }
