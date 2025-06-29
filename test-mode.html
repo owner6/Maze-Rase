@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Зомбі-Апокаліпсис: Лабіринт Виживання</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      color: #e74c3c;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      background: linear-gradient(45deg, #e74c3c, #c0392b);
+      border: none;
+      border-radius: 25px;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+
+    .btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .player-info {
+      margin-bottom: 15px;
+      text-align: center;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .player-name {
+      font-size: 1.5em;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #3498db;
+    }
+
+    .player-status {
+      font-size: 1.1em;
+      padding: 5px 15px;
+      border-radius: 15px;
+      display: inline-block;
+    }
+
+    .status-ready { background: rgba(52, 152, 219, 0.8); }
+    .status-playing { background: rgba(46, 204, 113, 0.8); }
+    .status-finished { background: rgba(231, 76, 60, 0.8); }
+    .status-winner { background: rgba(241, 196, 15, 0.8); }
+
+    .maze-container {
+      border: 3px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      margin-bottom: 20px;
+    }
+
+    .maze {
+      display: grid;
+      background: #2c3e50;
+    }
+
+    .cell {
+      width: 12px;
+      height: 12px;
+      border: 0.5px solid rgba(52, 73, 94, 0.5);
+    }
+
+    .wall { background: #34495e; }
+    .path { background: #ecf0f1; }
+    .start { background: #27ae60; }
+    .end { background: #e74c3c; }
+    .player { background: #3498db; box-shadow: 0 0 10px #3498db; }
+    .zombie { 
+      background: #8B4513; 
+      box-shadow: 0 0 8px #8B4513;
+      border-radius: 50%;
+    }
+    .zombie-fast { 
+      background: #FF4500; 
+      box-shadow: 0 0 8px #FF4500;
+      border-radius: 50%;
+    }
+    .zombie-boss { 
+      background: #800000; 
+      box-shadow: 0 0 12px #800000;
+      border-radius: 30%;
+    }
+    .ammo-cell {
+      background: #FFD700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #FFA500;
+      z-index: 2;
+    }
+    .health-cell {
+      background: #FF69B4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #FF1493;
+      z-index: 2;
+    }
+    .shield-cell {
+      background: #00CED1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #008B8B;
+      z-index: 2;
+    }
+    .safe-zone {
+      background: #32CD32;
+      border: 2px solid #228B22;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.7; }
+      50% { opacity: 1; }
+      100% { opacity: 0.7; }
+    }
+
+    .timer {
+      font-size: 1.2em;
+      margin: 15px 0;
+      padding: 10px 20px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 15px;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 20px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .stat-item {
+      background: rgba(0,0,0,0.3);
+      padding: 8px 15px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .instructions {
+      margin-top: 20px;
+      text-align: center;
+      max-width: 600px;
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+
+    .winner-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .winner-modal {
+      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      animation: modalAppear 0.5s ease-out;
+    }
+
+    @keyframes modalAppear {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .winner-text {
+      font-size: 3em;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+
+    .size-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    .size-controls label {
+      font-weight: bold;
+    }
+
+    .size-controls select {
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-size: 14px;
+    }
+
+    .event-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(45deg, #e74c3c, #c0392b);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      z-index: 1000;
+      animation: slideInRight 0.5s ease-out;
+      max-width: 300px;
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    @media (max-width: 768px) {
+      .cell {
+        width: 10px;
+        height: 10px;
+      }
+
+      .header h1 {
+        font-size: 2em;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="header">
+  <h1>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h1>
+</div>
+
+<div class="controls">
+  <div class="size-controls">
+    <label>Рівень складності:</label>
+    <select id="difficultyLevel">
+      <option value="easy" selected>Легкий</option>
+      <option value="medium">Середній</option>
+      <option value="hard">Важкий</option>
+      <option value="nightmare">Кошмар</option>
+    </select>
+  </div>
+  <button class="btn" id="newGameBtn">🧟‍♂️ Нова гра</button>
+  <button class="btn" id="pauseBtn" disabled>⏸️ Пауза</button>
+  <button class="btn" id="helpBtn">❓ Допомога</button>
+</div>
+
+<div class="timer" id="timer">Час виживання: 00:00</div>
+
+<div class="game-container">
+  <div class="player-info">
+    <div>
+      <div class="player-name">🎯 ГРАВЕЦЬ</div>
+      <div class="player-status status-ready" id="playerStatus">Готов до виживання</div>
+    </div>
+  </div>
+  
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item">❤️ Здоров'я: <span id="healthDisplay">100</span></div>
+    <div class="stat-item">🛡️ Щит: <span id="shieldDisplay">0</span></div>
+    <div class="stat-item">🔫 Патрони: <span id="ammoDisplay">10</span></div>
+    <div class="stat-item">🧟‍♂️ Зомбі: <span id="zombieCount">0</span></div>
+    <div class="stat-item">🏆 Рівень: <span id="levelDisplay">1</span></div>
+  </div>
+
+  <div class="maze-container">
+    <div class="maze" id="maze"></div>
+  </div>
+</div>
+
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="winner-modal">
+    <div class="winner-text" id="winnerText">🏆 ВИЖИВ!</div>
+    <p id="winnerMessage">Вітаємо з виживанням!</p>
+    <button class="btn" id="playAgainBtn">🔄 Грати знову</button>
+  </div>
+</div>
+
+<script>
+class MazeGenerator {
+  constructor(size) {
+    this.size = size;
+    this.maze = [];
+    this.generate();
+  }
+
+  generate() {
+    this.maze = Array(this.size).fill().map(() => Array(this.size).fill(1));
+    const stack = [];
+    const start = [1, 1];
+    this.maze[start[0]][start[1]] = 0;
+    stack.push(start);
+
+    while (stack.length > 0) {
+      const current = stack[stack.length - 1];
+      const neighbors = this.getUnvisitedNeighbors(current);
+
+      if (neighbors.length > 0) {
+        const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+        this.removeWall(current, next);
+        this.maze[next[0]][next[1]] = 0;
+        stack.push(next);
+      } else {
+        stack.pop();
+      }
+    }
+
+    this.maze[this.size - 2][this.size - 2] = 0;
+  }
+
+  getUnvisitedNeighbors([row, col]) {
+    const neighbors = [];
+    const directions = [[0, 2], [2, 0], [0, -2], [-2, 0]];
+
+    for (const [dr, dc] of directions) {
+      const newRow = row + dr;
+      const newCol = col + dc;
+
+      if (newRow > 0 && newRow < this.size - 1 &&
+        newCol > 0 && newCol < this.size - 1 &&
+        this.maze[newRow][newCol] === 1) {
+        neighbors.push([newRow, newCol]);
+      }
+    }
+
+    return neighbors;
+  }
+
+  removeWall([row1, col1], [row2, col2]) {
+    const wallRow = (row1 + row2) / 2;
+    const wallCol = (col1 + col2) / 2;
+    this.maze[wallRow][wallCol] = 0;
+  }
+}
+
+class ZombieApocalypseGame {
+  constructor() {
+    this.size = 31;
+    this.maze = null;
+    this.playerPos = [1, 1];
+    this.isGameActive = false;
+    this.isPaused = false;
+    this.startTime = null;
+    this.timerInterval = null;
+    this.playerDirection = null;
+    this.playerMoveInterval = null;
+    this.zombies = [];
+    this.zombieMoveInterval = null;
+    this.eventInterval = null;
+    this.itemSpawnInterval = null;
+    
+    // Статистика гравця
+    this.playerHealth = 100;
+    this.playerShield = 0;
+    this.playerAmmo = 10;
+    this.playerLevel = 1;
+    this.zombiesKilled = 0;
+    this.survivalTime = 0;
+    
+    // Предмети
+    this.ammoPos = null;
+    this.ammoVisible = false;
+    this.ammoTimeout = null;
+    this.healthPos = null;
+    this.healthVisible = false;
+    this.healthTimeout = null;
+    this.shieldPos = null;
+    this.shieldVisible = false;
+    this.shieldTimeout = null;
+    
+    // Безпечні зони
+    this.safeZones = [];
+    this.safeZoneTimeout = null;
+    
+    // Налаштування складності
+    this.difficulty = 'easy';
+    this.zombieSpawnRate = 5000;
+    this.itemSpawnRate = 8000;
+    this.safeZoneRate = 15000;
+    
+    this.initializeElements();
+    this.setupEventListeners();
+  }
+
+  initializeElements() {
+    this.mazeEl = document.getElementById('maze');
+    this.playerStatusEl = document.getElementById('playerStatus');
+    this.timerEl = document.getElementById('timer');
+    this.winnerOverlay = document.getElementById('winnerOverlay');
+    this.winnerText = document.getElementById('winnerText');
+    this.winnerMessage = document.getElementById('winnerMessage');
+    this.newGameBtn = document.getElementById('newGameBtn');
+    this.pauseBtn = document.getElementById('pauseBtn');
+    this.playAgainBtn = document.getElementById('playAgainBtn');
+    this.difficultySelect = document.getElementById('difficultyLevel');
+  }
+
+  setupEventListeners() {
+    this.newGameBtn.addEventListener('click', () => this.newGame());
+    this.pauseBtn.addEventListener('click', () => this.togglePause());
+    this.playAgainBtn.addEventListener('click', () => this.newGame());
+
+    document.getElementById('helpBtn').addEventListener('click', () => {
+      alert('🧟‍♂️ ЗОМБІ-АПОКАЛІПСИС: ЛАБІРИНТ ВИЖИВАННЯ\n\n🎯 Ціль: Вижити якомога довше, збираючи ресурси та уникаючи зомбі!\n\n🎮 Керування:\n• Стрілки ←↑↓→ або WASD для руху\n• Пробіл для стрільби (якщо є патрони)\n\n📋 Правила:\n• Зелений квадрат - старт\n• Зомбі рухаються до вас\n• Збирайте патрони, здоров\'я та щити\n• Безпечні зони тимчасово захищають від зомбі\n• Кожні 30 секунд рівень складності зростає!');
+    });
+
+    document.addEventListener('keydown', (e) => this.handleKeyPress(e));
+    this.difficultySelect.addEventListener('change', (e) => {
+      this.difficulty = e.target.value;
+      this.updateDifficultySettings();
+    });
+  }
+
+  updateDifficultySettings() {
+    switch(this.difficulty) {
+      case 'easy':
+        this.zombieSpawnRate = 5000;
+        this.itemSpawnRate = 8000;
+        this.safeZoneRate = 15000;
+        break;
+      case 'medium':
+        this.zombieSpawnRate = 4000;
+        this.itemSpawnRate = 7000;
+        this.safeZoneRate = 12000;
+        break;
+      case 'hard':
+        this.zombieSpawnRate = 3000;
+        this.itemSpawnRate = 6000;
+        this.safeZoneRate = 10000;
+        break;
+      case 'nightmare':
+        this.zombieSpawnRate = 2000;
+        this.itemSpawnRate = 5000;
+        this.safeZoneRate = 8000;
+        break;
+    }
+  }
+
+  clearAllIntervals() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
+    if (this.zombieMoveInterval) clearInterval(this.zombieMoveInterval);
+    if (this.eventInterval) clearInterval(this.eventInterval);
+    if (this.itemSpawnInterval) clearInterval(this.itemSpawnInterval);
+    if (this.ammoTimeout) clearTimeout(this.ammoTimeout);
+    if (this.healthTimeout) clearTimeout(this.healthTimeout);
+    if (this.shieldTimeout) clearTimeout(this.shieldTimeout);
+    if (this.safeZoneTimeout) clearTimeout(this.safeZoneTimeout);
+  }
+
+  newGame() {
+    this.clearAllIntervals();
+    this.isGameActive = true;
+    this.isPaused = false;
+    this.startTime = Date.now();
+    this.playerPos = [1, 1];
+    this.playerDirection = null;
+    
+    // Скидання статистики
+    this.playerHealth = 100;
+    this.playerShield = 0;
+    this.playerAmmo = 10;
+    this.playerLevel = 1;
+    this.zombiesKilled = 0;
+    this.survivalTime = 0;
+    
+    // Скидання предметів
+    this.ammoPos = null;
+    this.ammoVisible = false;
+    this.healthPos = null;
+    this.healthVisible = false;
+    this.shieldPos = null;
+    this.shieldVisible = false;
+    this.safeZones = [];
+    
+    // Генерація лабіринту
+    const generator = new MazeGenerator(this.size);
+    this.maze = generator.maze.map(row => [...row]);
+    
+    // Ініціалізація зомбі
+    this.zombies = [];
+    this.spawnInitialZombies();
+    
+    this.renderMaze();
+    this.updateStatus('playing');
+    this.updateStats();
+    this.startTimer();
+    this.startPlayerAutoMove();
+    this.startZombieAI();
+    this.startItemSpawning();
+    this.startSafeZoneSpawning();
+    
+    this.newGameBtn.textContent = '🔄 Нова гра';
+    this.pauseBtn.disabled = false;
+    this.winnerOverlay.style.display = 'none';
+  }
+
+  spawnInitialZombies() {
+    const initialZombieCount = this.difficulty === 'easy' ? 3 : 
+                              this.difficulty === 'medium' ? 5 :
+                              this.difficulty === 'hard' ? 8 : 12;
+    
+    for (let i = 0; i < initialZombieCount; i++) {
+      this.spawnZombie();
+    }
+  }
+
+  spawnZombie() {
+    const pos = this.getRandomEmptyPosition();
+    const zombieType = Math.random() < 0.1 ? 'boss' : 
+                      Math.random() < 0.3 ? 'fast' : 'normal';
+    
+    this.zombies.push({
+      pos: pos,
+      type: zombieType,
+      health: zombieType === 'boss' ? 3 : 1,
+      speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 120 : 100
+    });
+  }
+
+  getRandomEmptyPosition() {
+    let row, col;
+    do {
+      row = Math.floor(Math.random() * (this.size - 2)) + 1;
+      col = Math.floor(Math.random() * (this.size - 2)) + 1;
+    } while (
+      this.maze[row][col] === 1 ||
+      (row === this.playerPos[0] && col === this.playerPos[1]) ||
+      this.zombies.some(z => z.pos[0] === row && z.pos[1] === col) ||
+      this.safeZones.some(sz => sz[0] === row && sz[1] === col)
+    );
+    return [row, col];
+  }
+
+  renderMaze() {
+    this.mazeEl.innerHTML = '';
+    this.mazeEl.style.gridTemplateColumns = `repeat(${this.size}, 1fr)`;
+    
+    for (let row = 0; row < this.size; row++) {
+      for (let col = 0; col < this.size; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        
+        if (this.maze[row][col] === 1) {
+          cell.classList.add('wall');
+        } else {
+          cell.classList.add('path');
+        }
+        
+        // Старт
+        if (row === 1 && col === 1) {
+          cell.classList.add('start');
+        }
+        
+        // Фініш
+        if (row === this.size - 2 && col === this.size - 2) {
+          cell.classList.add('end');
+        }
+        
+        // Гравець
+        if (row === this.playerPos[0] && col === this.playerPos[1]) {
+          cell.classList.add('player');
+        }
+        
+        // Зомбі
+        for (const zombie of this.zombies) {
+          if (row === zombie.pos[0] && col === zombie.pos[1]) {
+            cell.classList.add('zombie');
+            if (zombie.type === 'fast') cell.classList.add('zombie-fast');
+            if (zombie.type === 'boss') cell.classList.add('zombie-boss');
+          }
+        }
+        
+        // Предмети
+        if (this.ammoVisible && this.ammoPos && row === this.ammoPos[0] && col === this.ammoPos[1]) {
+          cell.classList.add('ammo-cell');
+          cell.innerHTML = '<span style="font-size:12px;">🔫</span>';
+        }
+        
+        if (this.healthVisible && this.healthPos && row === this.healthPos[0] && col === this.healthPos[1]) {
+          cell.classList.add('health-cell');
+          cell.innerHTML = '<span style="font-size:12px;">❤️</span>';
+        }
+        
+        if (this.shieldVisible && this.shieldPos && row === this.shieldPos[0] && col === this.shieldPos[1]) {
+          cell.classList.add('shield-cell');
+          cell.innerHTML = '<span style="font-size:12px;">🛡️</span>';
+        }
+        
+        // Безпечні зони
+        if (this.safeZones.some(sz => sz[0] === row && sz[1] === col)) {
+          cell.classList.add('safe-zone');
+        }
+        
+        this.mazeEl.appendChild(cell);
+      }
+    }
+  }
+
+  handleKeyPress(e) {
+    if (!this.isGameActive || this.isPaused) return;
+
+    const keyMap = {
+      'ArrowUp': [-1, 0], 'KeyW': [-1, 0],
+      'ArrowDown': [1, 0], 'KeyS': [1, 0],
+      'ArrowLeft': [0, -1], 'KeyA': [0, -1],
+      'ArrowRight': [0, 1], 'KeyD': [0, 1]
+    };
+
+    const direction = keyMap[e.code];
+    if (direction) {
+      e.preventDefault();
+      this.playerDirection = direction;
+    }
+
+    // Стрільба
+    if (e.code === 'Space' && this.playerAmmo > 0) {
+      e.preventDefault();
+      this.shoot();
+    }
+  }
+
+  shoot() {
+    if (this.playerAmmo <= 0) return;
+    
+    this.playerAmmo--;
+    this.updateStats();
+    
+    // Знаходимо найближчого зомбі в прямій видимості
+    const directions = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of directions) {
+      let r = this.playerPos[0] + dr;
+      let c = this.playerPos[1] + dc;
+      
+      while (r >= 0 && r < this.size && c >= 0 && c < this.size && this.maze[r][c] === 0) {
+        const zombieIndex = this.zombies.findIndex(z => z.pos[0] === r && z.pos[1] === c);
+        if (zombieIndex !== -1) {
+          const zombie = this.zombies[zombieIndex];
+          zombie.health--;
+          
+          if (zombie.health <= 0) {
+            this.zombies.splice(zombieIndex, 1);
+            this.zombiesKilled++;
+            this.showEventNotification('🧟‍♂️ Зомбі знищено!');
+          } else {
+            this.showEventNotification('💥 Зомбі поранено!');
+          }
+          break;
+        }
+        r += dr;
+        c += dc;
+      }
+    }
+    
+    this.renderMaze();
+  }
+
+  startPlayerAutoMove() {
+    if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
+    this.playerMoveInterval = setInterval(() => {
+      if (!this.isGameActive || this.isPaused || !this.playerDirection) return;
+      
+      const newRow = this.playerPos[0] + this.playerDirection[0];
+      const newCol = this.playerPos[1] + this.playerDirection[1];
+      
+      if (this.isValidMove(newRow, newCol)) {
+        this.playerPos = [newRow, newCol];
+        this.checkItemPickup();
+        this.checkSafeZone();
+        this.renderMaze();
+        this.checkCollision();
+      }
+    }, 100);
+  }
+
+  isValidMove(row, col) {
+    return row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0;
+  }
+
+  checkItemPickup() {
+    // Патрони
+    if (this.ammoVisible && this.ammoPos && 
+        this.playerPos[0] === this.ammoPos[0] && this.playerPos[1] === this.ammoPos[1]) {
+      this.playerAmmo += 5;
+      this.hideAmmo();
+      this.showEventNotification('🔫 +5 патронів!');
+    }
+    
+    // Здоров'я
+    if (this.healthVisible && this.healthPos && 
+        this.playerPos[0] === this.healthPos[0] && this.playerPos[1] === this.healthPos[1]) {
+      this.playerHealth = Math.min(100, this.playerHealth + 30);
+      this.hideHealth();
+      this.showEventNotification('❤️ +30 здоров\'я!');
+    }
+    
+    // Щит
+    if (this.shieldVisible && this.shieldPos && 
+        this.playerPos[0] === this.shieldPos[0] && this.playerPos[1] === this.shieldPos[1]) {
+      this.playerShield = Math.min(100, this.playerShield + 50);
+      this.hideShield();
+      this.showEventNotification('🛡️ +50 щита!');
+    }
+    
+    this.updateStats();
+  }
+
+  checkSafeZone() {
+    const inSafeZone = this.safeZones.some(sz => 
+      sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+    );
+    
+    if (inSafeZone) {
+      this.playerStatusEl.textContent = '🛡️ В безпечній зоні';
+      this.playerStatusEl.style.background = 'rgba(46, 204, 113, 0.8)';
+    } else {
+      this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
+      this.playerStatusEl.style.background = 'rgba(52, 152, 219, 0.8)';
+    }
+  }
+
+  startZombieAI() {
+    if (this.zombieMoveInterval) clearInterval(this.zombieMoveInterval);
+    
+    setTimeout(() => {
+      if (!this.isGameActive) return;
+      
+      this.zombieMoveInterval = setInterval(() => {
+        if (!this.isGameActive || this.isPaused) return;
+        this.moveZombies();
+      }, 150);
+    }, 2000);
+  }
+
+  moveZombies() {
+    for (const zombie of this.zombies) {
+      // Простий AI: рухаємося до гравця
+      const [zRow, zCol] = zombie.pos;
+      const [pRow, pCol] = this.playerPos;
+      
+      const directions = [[-1,0],[1,0],[0,-1],[0,1]];
+      let bestDirection = null;
+      let bestDistance = Infinity;
+      
+      for (const [dr, dc] of directions) {
+        const newRow = zRow + dr;
+        const newCol = zCol + dc;
+        
+        if (this.isValidMove(newRow, newCol)) {
+          const distance = Math.abs(newRow - pRow) + Math.abs(newCol - pCol);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestDirection = [dr, dc];
+          }
+        }
+      }
+      
+      if (bestDirection) {
+        zombie.pos = [zRow + bestDirection[0], zCol + bestDirection[1]];
+      }
+    }
+    
+    this.renderMaze();
+    this.checkCollision();
+  }
+
+  checkCollision() {
+    for (const zombie of this.zombies) {
+      if (zombie.pos[0] === this.playerPos[0] && zombie.pos[1] === this.playerPos[1]) {
+        // Перевіряємо чи гравець в безпечній зоні
+        const inSafeZone = this.safeZones.some(sz => 
+          sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+        );
+        
+        if (!inSafeZone) {
+          const damage = zombie.type === 'boss' ? 30 : zombie.type === 'fast' ? 20 : 15;
+          
+          if (this.playerShield > 0) {
+            const shieldDamage = Math.min(this.playerShield, damage);
+            this.playerShield -= shieldDamage;
+            const remainingDamage = damage - shieldDamage;
+            this.playerHealth -= remainingDamage;
+          } else {
+            this.playerHealth -= damage;
+          }
+          
+          this.updateStats();
+          this.showEventNotification(`💥 Отримано ${damage} пошкоджень!`);
+          
+          if (this.playerHealth <= 0) {
+            this.endGame(false);
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  startItemSpawning() {
+    this.itemSpawnInterval = setInterval(() => {
+      if (!this.isGameActive || this.isPaused) return;
+      
+      const itemType = Math.random();
+      if (itemType < 0.4) {
+        this.spawnAmmo();
+      } else if (itemType < 0.7) {
+        this.spawnHealth();
+      } else {
+        this.spawnShield();
+      }
+    }, this.itemSpawnRate);
+  }
+
+  spawnAmmo() {
+    if (this.ammoVisible) return;
+    
+    const pos = this.getRandomEmptyPosition();
+    this.ammoPos = pos;
+    this.ammoVisible = true;
+    this.renderMaze();
+    
+    this.ammoTimeout = setTimeout(() => {
+      this.hideAmmo();
+    }, 5000);
+  }
+
+  hideAmmo() {
+    this.ammoVisible = false;
+    this.ammoPos = null;
+    this.renderMaze();
+  }
+
+  spawnHealth() {
+    if (this.healthVisible) return;
+    
+    const pos = this.getRandomEmptyPosition();
+    this.healthPos = pos;
+    this.healthVisible = true;
+    this.renderMaze();
+    
+    this.healthTimeout = setTimeout(() => {
+      this.hideHealth();
+    }, 5000);
+  }
+
+  hideHealth() {
+    this.healthVisible = false;
+    this.healthPos = null;
+    this.renderMaze();
+  }
+
+  spawnShield() {
+    if (this.shieldVisible) return;
+    
+    const pos = this.getRandomEmptyPosition();
+    this.shieldPos = pos;
+    this.shieldVisible = true;
+    this.renderMaze();
+    
+    this.shieldTimeout = setTimeout(() => {
+      this.hideShield();
+    }, 5000);
+  }
+
+  hideShield() {
+    this.shieldVisible = false;
+    this.shieldPos = null;
+    this.renderMaze();
+  }
+
+  startSafeZoneSpawning() {
+    this.safeZoneTimeout = setTimeout(() => {
+      if (!this.isGameActive || this.isPaused) return;
+      this.spawnSafeZone();
+      this.startSafeZoneSpawning();
+    }, this.safeZoneRate);
+  }
+
+  spawnSafeZone() {
+    const pos = this.getRandomEmptyPosition();
+    this.safeZones.push(pos);
+    this.renderMaze();
+    this.showEventNotification('🛡️ З\'явилася безпечна зона!');
+    
+    setTimeout(() => {
+      this.safeZones = this.safeZones.filter(sz => 
+        !(sz[0] === pos[0] && sz[1] === pos[1])
+      );
+      this.renderMaze();
+      this.showEventNotification('⚠️ Безпечна зона зникла!');
+    }, 8000);
+  }
+
+  startTimer() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.timerInterval = setInterval(() => {
+      if (!this.isPaused && this.isGameActive) {
+        this.survivalTime = Math.floor((Date.now() - this.startTime) / 1000);
+        const minutes = Math.floor(this.survivalTime / 60);
+        const seconds = this.survivalTime % 60;
+        this.timerEl.textContent = `Час виживання: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Підвищення рівня кожні 30 секунд
+        const newLevel = Math.floor(this.survivalTime / 30) + 1;
+        if (newLevel > this.playerLevel) {
+          this.playerLevel = newLevel;
+          this.updateStats();
+          this.showEventNotification(`🏆 Рівень ${this.playerLevel}! Більше зомбі!`);
+          
+          // Додаємо нових зомбі
+          const additionalZombies = this.difficulty === 'easy' ? 1 : 
+                                   this.difficulty === 'medium' ? 2 :
+                                   this.difficulty === 'hard' ? 3 : 4;
+          
+          for (let i = 0; i < additionalZombies; i++) {
+            this.spawnZombie();
+          }
+        }
+      }
+    }, 1000);
+  }
+
+  updateStats() {
+    document.getElementById('healthDisplay').textContent = this.playerHealth;
+    document.getElementById('shieldDisplay').textContent = this.playerShield;
+    document.getElementById('ammoDisplay').textContent = this.playerAmmo;
+    document.getElementById('zombieCount').textContent = this.zombies.length;
+    document.getElementById('levelDisplay').textContent = this.playerLevel;
+  }
+
+  updateStatus(status) {
+    const statusMap = {
+      'ready': { text: 'Готов до виживання', class: 'status-ready' },
+      'playing': { text: 'Виживає...', class: 'status-playing' },
+      'finished': { text: 'Загинув!', class: 'status-finished' }
+    };
+
+    const statusInfo = statusMap[status];
+    if (statusInfo) {
+      this.playerStatusEl.textContent = statusInfo.text;
+      this.playerStatusEl.className = `player-status ${statusInfo.class}`;
+    }
+  }
+
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    this.pauseBtn.textContent = this.isPaused ? '▶️ Продовжити' : '⏸️ Пауза';
+
+    if (this.isPaused) {
+      this.updateStatus('ready');
+    } else {
+      this.updateStatus('playing');
+      this.startTime += Date.now() - this.pauseTime;
+    }
+
+    if (this.isPaused) {
+      this.pauseTime = Date.now();
+    }
+  }
+
+  endGame(survived) {
+    this.isGameActive = false;
+    this.clearAllIntervals();
+    
+    if (survived) {
+      this.winnerText.textContent = '🏆 ВИЖИВ!';
+      this.winnerMessage.textContent = `Вітаємо! Ви вижили ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')} хвилин!\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
+    } else {
+      this.winnerText.textContent = '💀 ЗАГИНУВ!';
+      this.winnerMessage.textContent = `Ви не вижили в зомбі-апокаліпсисі!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
+    }
+    
+    this.winnerOverlay.style.display = 'flex';
+    this.pauseBtn.disabled = true;
+  }
+
+  showEventNotification(message) {
+    const existingNotification = document.querySelector('.event-notification');
+    if (existingNotification) {
+      existingNotification.remove();
+    }
+
+    const notification = document.createElement('div');
+    notification.className = 'event-notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'fadeOut 0.5s ease-out';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.remove();
+          }
+        }, 500);
+      }
+    }, 3000);
+  }
+}
+
+// Запуск гри
+window.addEventListener('DOMContentLoaded', () => {
+  window.zombieGame = new ZombieApocalypseGame();
+});
+</script>
+
+<nav style="margin-bottom: 18px;">
+  <a href="index.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">Головна</a>
+  <a href="global.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">GLOBAL</a>
+  <a href="standings.html" style="color:#fff; font-weight:bold; text-decoration:none;">Турнірна таблиця</a>
+</nav>
+
+<div class="instructions">
+  <h3>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h3>
+  <p><strong>🎯 Ціль:</strong> Вижити якомога довше, збираючи ресурси та уникаючи зомбі!</p>
+  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для стрільби</p>
+  <p><strong>📋 Правила:</strong> Зелений квадрат - старт. Збирайте патрони, здоров'я та щити. Безпечні зони тимчасово захищають від зомбі!</p>
+  <p><strong>🏆 Рівні складності:</strong> Легкий, Середній, Важкий, Кошмар</p>
+</div>
+</body>
+</html>
