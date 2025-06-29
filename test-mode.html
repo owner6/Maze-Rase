@@ -310,6 +310,15 @@
         font-size: 2em;
       }
     }
+
+    .pickaxe-cell {
+      background: gold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #bfa100;
+      z-index: 2;
+    }
   </style>
 </head>
 <body>
@@ -435,6 +444,7 @@ class ZombieApocalypseGame {
     this.zombieMoveInterval = null;
     this.eventInterval = null;
     this.itemSpawnInterval = null;
+    this.zombieTypeChangeInterval = null;
     
     // Статистика гравця
     this.playerHealth = 100;
@@ -454,10 +464,17 @@ class ZombieApocalypseGame {
     this.shieldPos = null;
     this.shieldVisible = false;
     this.shieldTimeout = null;
+    this.pickaxePos = null;
+    this.pickaxeVisible = false;
+    this.playerHasPickaxe = false;
     
     // Безпечні зони
     this.safeZones = [];
     this.safeZoneTimeout = null;
+    
+    // Вихід (з'являється після вбивства всіх зомбі)
+    this.exitPos = null;
+    this.exitVisible = false;
     
     // Налаштування складності
     this.difficulty = 'easy';
@@ -488,7 +505,7 @@ class ZombieApocalypseGame {
     this.playAgainBtn.addEventListener('click', () => this.newGame());
 
     document.getElementById('helpBtn').addEventListener('click', () => {
-      alert('🧟‍♂️ ЗОМБІ-АПОКАЛІПСИС: ЛАБІРИНТ ВИЖИВАННЯ\n\n🎯 Ціль: Вижити якомога довше, збираючи ресурси та уникаючи зомбі!\n\n🎮 Керування:\n• Стрілки ←↑↓→ або WASD для руху\n• Пробіл для стрільби (якщо є патрони)\n\n📋 Правила:\n• Зелений квадрат - старт\n• Зомбі рухаються до вас\n• Збирайте патрони, здоров\'я та щити\n• Безпечні зони тимчасово захищають від зомбі\n• Кожні 30 секунд рівень складності зростає!');
+      alert('🧟‍♂️ ЗОМБІ-АПОКАЛІПСИС: ЛАБІРИНТ ВИЖИВАННЯ\n\n🎯 Ціль: Знищити всіх зомбі, щоб з\'явився вихід, потім дістатися до нього!\n\n🎮 Керування:\n• Стрілки ←↑↓→ або WASD для руху\n• Пробіл для атаки (стрільба або ближній бій)\n• E для використання топора (якщо є)\n\n📋 Правила:\n• Зелений квадрат - старт\n• Зомбі рухаються до вас за допомогою A* алгоритму\n• Збирайте патрони, здоров\'я, щити та топори\n• Топор дозволяє прорубувати стіни (кнопка E)\n• Безпечні зони тимчасово захищають від зомбі\n• Зомбі з\'являються ТІЛЬКИ при контакті різних типів\n• Типи зомбі змінюються кожні 10 секунд\n• Різні типи зомбі мають різну кількість здоров\'я:\n  - Звичайний: 2 HP\n  - Швидкий: 3 HP\n  - Бос: 5 HP\n\n🔫 Бойова система:\n• Зомбі на клітинці гравця: завжди ближній бій (незалежно від патронів)\n• Зомбі на відстані: стрільба (якщо є патрони)');
     });
 
     document.addEventListener('keydown', (e) => this.handleKeyPress(e));
@@ -529,6 +546,7 @@ class ZombieApocalypseGame {
     if (this.zombieMoveInterval) clearInterval(this.zombieMoveInterval);
     if (this.eventInterval) clearInterval(this.eventInterval);
     if (this.itemSpawnInterval) clearInterval(this.itemSpawnInterval);
+    if (this.zombieTypeChangeInterval) clearInterval(this.zombieTypeChangeInterval);
     if (this.ammoTimeout) clearTimeout(this.ammoTimeout);
     if (this.healthTimeout) clearTimeout(this.healthTimeout);
     if (this.shieldTimeout) clearTimeout(this.shieldTimeout);
@@ -558,7 +576,19 @@ class ZombieApocalypseGame {
     this.healthVisible = false;
     this.shieldPos = null;
     this.shieldVisible = false;
+    this.pickaxePos = null;
+    this.pickaxeVisible = false;
+    this.playerHasPickaxe = false;
     this.safeZones = [];
+    this.exitPos = null;
+    this.exitVisible = false;
+    
+    // Очищення таймерів
+    if (this.ammoTimeout) clearTimeout(this.ammoTimeout);
+    if (this.healthTimeout) clearTimeout(this.healthTimeout);
+    if (this.shieldTimeout) clearTimeout(this.shieldTimeout);
+    if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout);
+    if (this.safeZoneTimeout) clearTimeout(this.safeZoneTimeout);
     
     // Генерація лабіринту
     const generator = new MazeGenerator(this.size);
@@ -576,6 +606,7 @@ class ZombieApocalypseGame {
     this.startZombieAI();
     this.startItemSpawning();
     this.startSafeZoneSpawning();
+    this.startZombieTypeChange();
     
     this.newGameBtn.textContent = '🔄 Нова гра';
     this.pauseBtn.disabled = false;
@@ -597,11 +628,30 @@ class ZombieApocalypseGame {
     const zombieType = Math.random() < 0.1 ? 'boss' : 
                       Math.random() < 0.3 ? 'fast' : 'normal';
     
+    // Різна кількість здоров'я для різних типів зомбі
+    let health;
+    switch(zombieType) {
+      case 'boss':
+        health = 5; // Бос зомбі - найміцніший
+        break;
+      case 'fast':
+        health = 3; // Швидкий зомбі - середня міцність
+        break;
+      default:
+        health = 2; // Звичайний зомбі - найслабший
+        break;
+    }
+    
     this.zombies.push({
       pos: pos,
       type: zombieType,
-      health: zombieType === 'boss' ? 3 : 1,
-      speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 120 : 100
+      health: health,
+      maxHealth: health, // Додаємо максимальне здоров'я для відображення
+      speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 120 : 100,
+      state: 'patrolling',
+      direction: [0, 1],
+      path: [],
+      pathIndex: 0
     });
   }
 
@@ -639,8 +689,8 @@ class ZombieApocalypseGame {
           cell.classList.add('start');
         }
         
-        // Фініш
-        if (row === this.size - 2 && col === this.size - 2) {
+        // Вихід (тільки якщо всі зомбі знищені)
+        if (this.exitVisible && this.exitPos && row === this.exitPos[0] && col === this.exitPos[1]) {
           cell.classList.add('end');
         }
         
@@ -655,6 +705,17 @@ class ZombieApocalypseGame {
             cell.classList.add('zombie');
             if (zombie.type === 'fast') cell.classList.add('zombie-fast');
             if (zombie.type === 'boss') cell.classList.add('zombie-boss');
+            
+            // Додаємо індикатор здоров'я зомбі
+            if (zombie.health < zombie.maxHealth) {
+              const healthPercent = (zombie.health / zombie.maxHealth) * 100;
+              let healthColor = '#00ff00'; // Зелений
+              if (healthPercent < 50) healthColor = '#ffff00'; // Жовтий
+              if (healthPercent < 25) healthColor = '#ff0000'; // Червоний
+              
+              cell.style.border = `2px solid ${healthColor}`;
+              cell.style.boxShadow = `0 0 8px ${healthColor}`;
+            }
           }
         }
         
@@ -672,6 +733,12 @@ class ZombieApocalypseGame {
         if (this.shieldVisible && this.shieldPos && row === this.shieldPos[0] && col === this.shieldPos[1]) {
           cell.classList.add('shield-cell');
           cell.innerHTML = '<span style="font-size:12px;">🛡️</span>';
+        }
+        
+        // Топор
+        if (this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) {
+          cell.classList.add('pickaxe-cell');
+          cell.innerHTML = '<span style="font-size:12px;">🪓</span>';
         }
         
         // Безпечні зони
@@ -700,10 +767,31 @@ class ZombieApocalypseGame {
       this.playerDirection = direction;
     }
 
-    // Стрільба
-    if (e.code === 'Space' && this.playerAmmo > 0) {
+    // Стрільба або ближній бій
+    if (e.code === 'Space') {
       e.preventDefault();
-      this.shoot();
+      
+      // Спочатку перевіряємо чи є зомбі на тій самій клітинці з гравцем
+      const zombieOnPlayer = this.zombies.findIndex(z => 
+        z.pos[0] === this.playerPos[0] && z.pos[1] === this.playerPos[1]
+      );
+      
+      if (zombieOnPlayer !== -1) {
+        // Якщо зомбі на клітинці гравця - завжди ближній бій (незалежно від патронів)
+        this.meleeAttack();
+      } else {
+        // Якщо зомбі немає на клітинці гравця - стріляємо (якщо є патрони)
+        if (this.playerAmmo > 0) {
+          this.shoot();
+        } else {
+          this.showEventNotification('❌ Немає патронів для стрільби!');
+        }
+      }
+    }
+    
+    // Використання топора (E)
+    if (e.code === 'KeyE' && this.playerHasPickaxe) {
+      this.tryBreakWall();
     }
   }
 
@@ -713,7 +801,7 @@ class ZombieApocalypseGame {
     this.playerAmmo--;
     this.updateStats();
     
-    // Знаходимо найближчого зомбі в прямій видимості
+    // Стріляємо тільки в зомбі на відстані (не на клітинці гравця)
     const directions = [[-1,0],[1,0],[0,-1],[0,1]];
     for (const [dr, dc] of directions) {
       let r = this.playerPos[0] + dr;
@@ -728,9 +816,15 @@ class ZombieApocalypseGame {
           if (zombie.health <= 0) {
             this.zombies.splice(zombieIndex, 1);
             this.zombiesKilled++;
-            this.showEventNotification('🧟‍♂️ Зомбі знищено!');
+            this.showEventNotification(`🧟‍♂️ ${zombie.type.toUpperCase()} зомбі знищено!`);
+            
+            // Перевіряємо чи всі зомбі знищені
+            if (this.zombies.length === 0) {
+              this.spawnExit();
+              this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+            }
           } else {
-            this.showEventNotification('💥 Зомбі поранено!');
+            this.showEventNotification(`💥 ${zombie.type.toUpperCase()} зомбі поранено! (${zombie.health}/${zombie.maxHealth})`);
           }
           break;
         }
@@ -740,6 +834,36 @@ class ZombieApocalypseGame {
     }
     
     this.renderMaze();
+  }
+
+  // Додаємо функцію ближнього бою (працює завжди, коли зомбі на клітинці гравця)
+  meleeAttack() {
+    // Перевіряємо чи є зомбі на тій самій клітинці з гравцем
+    const zombieOnPlayer = this.zombies.findIndex(z => 
+      z.pos[0] === this.playerPos[0] && z.pos[1] === this.playerPos[1]
+    );
+    
+    if (zombieOnPlayer !== -1) {
+      const zombie = this.zombies[zombieOnPlayer];
+      zombie.health--;
+      
+      if (zombie.health <= 0) {
+        this.zombies.splice(zombieOnPlayer, 1);
+        this.zombiesKilled++;
+        this.showEventNotification(`👊 ${zombie.type.toUpperCase()} зомбі знищено ближнім боєм!`);
+        
+        // Перевіряємо чи всі зомбі знищені
+        if (this.zombies.length === 0) {
+          this.spawnExit();
+          this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+        }
+      } else {
+        this.showEventNotification(`👊 ${zombie.type.toUpperCase()} зомбі поранено ближнім боєм! (${zombie.health}/${zombie.maxHealth})`);
+      }
+      this.renderMaze();
+    } else {
+      this.showEventNotification('❌ Немає зомбі для атаки ближнім боєм!');
+    }
   }
 
   startPlayerAutoMove() {
@@ -789,6 +913,14 @@ class ZombieApocalypseGame {
       this.showEventNotification('🛡️ +50 щита!');
     }
     
+    // Топор
+    if (this.pickaxeVisible && this.pickaxePos && 
+        this.playerPos[0] === this.pickaxePos[0] && this.playerPos[1] === this.pickaxePos[1]) {
+      this.playerHasPickaxe = true;
+      this.hidePickaxe();
+      this.showEventNotification('🪓 Топор підібрано! Натисніть E для використання!');
+    }
+    
     this.updateStats();
   }
 
@@ -820,35 +952,303 @@ class ZombieApocalypseGame {
   }
 
   moveZombies() {
-    for (const zombie of this.zombies) {
-      // Простий AI: рухаємося до гравця
-      const [zRow, zCol] = zombie.pos;
-      const [pRow, pCol] = this.playerPos;
-      
-      const directions = [[-1,0],[1,0],[0,-1],[0,1]];
-      let bestDirection = null;
-      let bestDistance = Infinity;
-      
-      for (const [dr, dc] of directions) {
-        const newRow = zRow + dr;
-        const newCol = zCol + dc;
-        
-        if (this.isValidMove(newRow, newCol)) {
-          const distance = Math.abs(newRow - pRow) + Math.abs(newCol - pCol);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestDirection = [dr, dc];
+    this.moveZombiesGeneric(this.zombies, this.maze, this.playerPos, () => this.checkCollision());
+  }
+
+  moveZombiesGeneric(zombies, maze, targetPos, collisionCallback) {
+    for (const zombie of zombies) {
+      // Перевіряємо валідність поточного шляху зомбі
+      if (zombie.path && zombie.pathIndex < zombie.path.length) {
+        const nextPos = zombie.path[zombie.pathIndex];
+        if (!this.isValidMove(nextPos[0], nextPos[1])) {
+          // Шлях більше не валідний, перераховуємо
+          zombie.path = [];
+          zombie.pathIndex = 0;
+        }
+      }
+
+      // Перевіряємо, бачить ли зомбі ціль
+      if (this.canSeeTarget(zombie, maze, targetPos)) {
+        zombie.state = 'chasing';
+      } else {
+        zombie.state = 'patrolling';
+      }
+
+      if (zombie.state === 'chasing') {
+        // Режим полювання: використовуємо A*
+        if (!zombie.path || zombie.pathIndex >= zombie.path.length || Math.random() < 0.1) {
+          zombie.path = this.findPathAStar(maze, zombie.pos, targetPos);
+          // Якщо шлях веде до старту — не йти
+          if (zombie.path && zombie.path.length > 0 && zombie.path[zombie.path.length-1][0] === 1 && zombie.path[zombie.path.length-1][1] === 1) {
+            zombie.path = [zombie.pos];
+          }
+          zombie.pathIndex = 1;
+        }
+        if (zombie.path && zombie.pathIndex < zombie.path.length) {
+          // Не дозволяємо зомбі потрапити на старт
+          if (zombie.path[zombie.pathIndex][0] === 1 && zombie.path[zombie.pathIndex][1] === 1) {
+            // Залишається на місці
+          } else {
+            zombie.pos = zombie.path[zombie.pathIndex];
+          }
+          zombie.pathIndex++;
+        }
+      } else {
+        // Покращене патрулювання: не повертатися назад, змінювати напрямок на перехрестях
+        const possibleDirections = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        const prevDirection = zombie.direction;
+        const reverseDirection = prevDirection ? [-prevDirection[0], -prevDirection[1]] : null;
+        // Знаходимо всі можливі напрямки (крім зворотного, якщо є інші варіанти)
+        let validDirections = possibleDirections.filter(dir => {
+          const checkPos = [zombie.pos[0] + dir[0], zombie.pos[1] + dir[1]];
+          if ((checkPos[0] === 1 && checkPos[1] === 1)) return false; // Не йти на старт
+          if (reverseDirection && dir[0] === reverseDirection[0] && dir[1] === reverseDirection[1]) return false;
+          return this.isValidMove(checkPos[0], checkPos[1]);
+        });
+        // Якщо тільки зворотний шлях можливий (тупик), дозволяємо його
+        if (validDirections.length === 0 && reverseDirection) {
+          const backPos = [zombie.pos[0] + reverseDirection[0], zombie.pos[1] + reverseDirection[1]];
+          if (this.isValidMove(backPos[0], backPos[1]) && !(backPos[0] === 1 && backPos[1] === 1)) {
+            validDirections = [reverseDirection];
+          }
+        }
+        // На перехрестях (більше 1 варіанта) іноді змінюємо напрямок випадково
+        if (validDirections.length > 1 && Math.random() < 0.3) {
+          zombie.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
+        } else if (validDirections.length > 0) {
+          // Якщо поточний напрямок ще валідний, продовжуємо, інакше беремо новий
+          const nextPos = [zombie.pos[0] + (zombie.direction ? zombie.direction[0] : 0), zombie.pos[1] + (zombie.direction ? zombie.direction[1] : 0)];
+          if (!zombie.direction || !this.isValidMove(nextPos[0], nextPos[1]) || (nextPos[0] === 1 && nextPos[1] === 1)) {
+            zombie.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
+          }
+        }
+        // Рухаємося в вибраному напрямку
+        if (zombie.direction) {
+          const nextPos = [zombie.pos[0] + zombie.direction[0], zombie.pos[1] + zombie.direction[1]];
+          if (!(nextPos[0] === 1 && nextPos[1] === 1)) {
+            zombie.pos = nextPos;
           }
         }
       }
-      
-      if (bestDirection) {
-        zombie.pos = [zRow + bestDirection[0], zCol + bestDirection[1]];
+    }
+    collisionCallback();
+    // Перевіряємо взаємодії зомбі
+    this.checkZombieInteractions(zombies, maze);
+    this.renderMaze();
+  }
+
+  canSeeTarget(zombie, maze, targetPos) {
+    // Стартова позиція невидима для зомбі
+    if (targetPos[0] === 1 && targetPos[1] === 1) return false;
+    const [zRow, zCol] = zombie.pos;
+    const [tRow, tCol] = targetPos;
+    const lineOfSightDistance = 15;
+    // Перевірка по горизонталі
+    if (zRow === tRow && Math.abs(zCol - tCol) < lineOfSightDistance) {
+      const start = Math.min(zCol, tCol);
+      const end = Math.max(zCol, tCol);
+      let wallFound = false;
+      for (let i = start + 1; i < end; i++) {
+        if (maze[zRow][i] === 1) { wallFound = true; break; }
+      }
+      if (!wallFound) return true;
+    }
+    // Перевірка по вертикалі
+    if (zCol === tCol && Math.abs(zRow - tRow) < lineOfSightDistance) {
+      const start = Math.min(zRow, tRow);
+      const end = Math.max(zRow, tRow);
+      let wallFound = false;
+      for (let i = start + 1; i < end; i++) {
+        if (maze[i][zCol] === 1) { wallFound = true; break; }
+      }
+      if (!wallFound) return true;
+    }
+    return false;
+  }
+
+  // Алгоритм A* для пошуку найкоротшого шляху
+  findPathAStar(maze, start, goal) {
+    // Зомбі не можуть будувати шлях до стартової позиції
+    if (goal[0] === 1 && goal[1] === 1) return [start];
+    const size = this.size;
+    const openSet = [start];
+    const cameFrom = {};
+    const gScore = Array(size).fill().map(() => Array(size).fill(Infinity));
+    const fScore = Array(size).fill().map(() => Array(size).fill(Infinity));
+    gScore[start[0]][start[1]] = 0;
+    fScore[start[0]][start[1]] = this.heuristic(start, goal);
+
+    function posToStr(pos) { return pos[0] + ',' + pos[1]; }
+    function strToPos(str) { return str.split(',').map(Number); }
+
+    while (openSet.length > 0) {
+      // Знаходимо вузол з мінімальним fScore
+      let currentIdx = 0;
+      for (let i = 1; i < openSet.length; i++) {
+        const [r, c] = openSet[i];
+        if (fScore[r][c] < fScore[openSet[currentIdx][0]][openSet[currentIdx][1]]) {
+          currentIdx = i;
+        }
+      }
+      const current = openSet.splice(currentIdx, 1)[0];
+      if (current[0] === goal[0] && current[1] === goal[1]) {
+        // Відновлюємо шлях
+        let path = [goal];
+        let currStr = posToStr(goal);
+        while (cameFrom[currStr]) {
+          currStr = cameFrom[currStr];
+          path.push(strToPos(currStr));
+        }
+        path.reverse();
+        return path;
+      }
+      const directions = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (const [dr, dc] of directions) {
+        const nr = current[0] + dr, nc = current[1] + dc;
+        if (nr >= 0 && nr < size && nc >= 0 && nc < size && maze[nr][nc] === 0) {
+          const tentative_gScore = gScore[current[0]][current[1]] + 1;
+          if (tentative_gScore < gScore[nr][nc]) {
+            cameFrom[posToStr([nr, nc])] = posToStr(current);
+            gScore[nr][nc] = tentative_gScore;
+            fScore[nr][nc] = tentative_gScore + this.heuristic([nr, nc], goal);
+            if (!openSet.some(([r, c]) => r === nr && c === nc)) {
+              openSet.push([nr, nc]);
+            }
+          }
+        }
       }
     }
-    
+    // Немає шляху
+    return [start];
+  }
+
+  heuristic(pos, goal) {
+    // Манхеттенська відстань
+    return Math.abs(pos[0] - goal[0]) + Math.abs(pos[1] - goal[1]);
+  }
+
+  checkZombieInteractions(zombies, maze) {
+    const toRemove = new Set();
+    const newZombies = [];
+    const minZombies = 0;
+    const maxZombies = 418;
+
+    for (let i = 0; i < zombies.length; i++) {
+      if (toRemove.has(i)) continue;
+
+      for (let j = i + 1; j < zombies.length; j++) {
+        if (toRemove.has(j)) continue;
+
+        const z1 = zombies[i];
+        const z2 = zombies[j];
+
+        const isTouching = Math.abs(z1.pos[0] - z2.pos[0]) + Math.abs(z1.pos[1] - z2.pos[1]) <= 1;
+
+        // Взаємодія відбувається тільки якщо типи РІЗНІ
+        if (isTouching && z1.type !== z2.type) {
+          
+          // 50% шанс на народження, 50% на загибель
+          if (Math.random() < 0.5) {
+            // --- НАРОДЖЕННЯ ---
+            if (zombies.length + newZombies.length < maxZombies) {
+              const zombieType = Math.random() < 0.1 ? 'boss' : 
+                                Math.random() < 0.3 ? 'fast' : 'normal';
+              
+              // Різна кількість здоров'я для різних типів зомбі
+              let health;
+              switch(zombieType) {
+                case 'boss':
+                  health = 5;
+                  break;
+                case 'fast':
+                  health = 3;
+                  break;
+                default:
+                  health = 2;
+                  break;
+              }
+              
+              newZombies.push({
+                pos: this.getRandomEmptyPosition(),
+                type: zombieType,
+                health: health,
+                maxHealth: health,
+                speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 120 : 100,
+                state: 'patrolling',
+                direction: [0, 1],
+                path: [],
+                pathIndex: 0
+              });
+            }
+          } else {
+            // --- ЗАГИБЕЛЬ ---
+            if (zombies.length - toRemove.size > minZombies) {
+              // Видаляємо одного з двох зіткнувшихся випадково
+              toRemove.add(Math.random() < 0.5 ? i : j);
+            }
+          }
+          
+          // Запобігаємо подальшим взаємодіям для цієї пари в поточному тику
+          // і переходимо до наступного головного зомбі (i)
+          break; 
+        }
+      }
+    }
+
+    // Застосовуємо всі зміни після ітерації
+    const filteredZombies = zombies.filter((_, index) => !toRemove.has(index));
+    zombies.length = 0;
+    zombies.push(...filteredZombies);
+    zombies.push(...newZombies);
+  }
+
+  startZombieTypeChange() {
+    if (this.zombieTypeChangeInterval) {
+      clearInterval(this.zombieTypeChangeInterval);
+    }
+    this.zombieTypeChangeInterval = setInterval(() => {
+      if (!this.isGameActive || this.isPaused || this.zombies.length === 0) {
+        return;
+      }
+      // Змінюємо тип випадкового зомбі
+      const randomZombieIndex = Math.floor(Math.random() * this.zombies.length);
+      const zombieToChange = this.zombies[randomZombieIndex];
+      const newType = Math.random() < 0.1 ? 'boss' : 
+                     Math.random() < 0.3 ? 'fast' : 'normal';
+      
+      // Встановлюємо нове здоров'я відповідно до типу
+      let newHealth;
+      switch(newType) {
+        case 'boss':
+          newHealth = 5;
+          break;
+        case 'fast':
+          newHealth = 3;
+          break;
+        default:
+          newHealth = 2;
+          break;
+      }
+      
+      zombieToChange.type = newType;
+      zombieToChange.health = newHealth;
+      zombieToChange.maxHealth = newHealth;
+      zombieToChange.speed = newType === 'fast' ? 80 : newType === 'boss' ? 120 : 100;
+      this.renderMaze();
+    }, 10000);
+  }
+
+  spawnExit() {
+    // Генеруємо вихід в випадковому куті
+    const corners = [
+      [1, 1],
+      [1, this.size-2],
+      [this.size-2, 1],
+      [this.size-2, this.size-2]
+    ];
+    this.exitPos = corners[Math.floor(Math.random()*corners.length)];
+    this.exitVisible = true;
     this.renderMaze();
-    this.checkCollision();
   }
 
   checkCollision() {
@@ -881,6 +1281,12 @@ class ZombieApocalypseGame {
         }
       }
     }
+    
+    // Перевіряємо чи гравець досяг виходу
+    if (this.exitVisible && this.exitPos && 
+        this.playerPos[0] === this.exitPos[0] && this.playerPos[1] === this.exitPos[1]) {
+      this.endGame(true);
+    }
   }
 
   startItemSpawning() {
@@ -888,12 +1294,14 @@ class ZombieApocalypseGame {
       if (!this.isGameActive || this.isPaused) return;
       
       const itemType = Math.random();
-      if (itemType < 0.4) {
+      if (itemType < 0.35) {
         this.spawnAmmo();
-      } else if (itemType < 0.7) {
+      } else if (itemType < 0.65) {
         this.spawnHealth();
-      } else {
+      } else if (itemType < 0.85) {
         this.spawnShield();
+      } else {
+        this.spawnPickaxe();
       }
     }, this.itemSpawnRate);
   }
@@ -955,6 +1363,53 @@ class ZombieApocalypseGame {
     this.renderMaze();
   }
 
+  spawnPickaxe() {
+    if (this.pickaxeVisible || this.playerHasPickaxe) return;
+    
+    const pos = this.getRandomEmptyPosition();
+    this.pickaxePos = pos;
+    this.pickaxeVisible = true;
+    this.renderMaze();
+    
+    this.pickaxeTimeout = setTimeout(() => {
+      this.hidePickaxe();
+    }, 5000);
+  }
+
+  hidePickaxe() {
+    this.pickaxeVisible = false;
+    this.pickaxePos = null;
+    this.renderMaze();
+  }
+
+  tryBreakWall() {
+    // Можна розбити одну стіну навколо гравця (вгору, вниз, вліво, вправо)
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr,dc] of dirs) {
+      const r = this.playerPos[0] + dr;
+      const c = this.playerPos[1] + dc;
+      if (r >= 0 && r < this.size && c >= 0 && c < this.size && this.maze[r][c] === 1) {
+        this.maze[r][c] = 0;
+        this.playerHasPickaxe = false;
+        this.showEventNotification('🧱 Стіну прорублено!');
+        this.renderMaze();
+        // Після використання топора — з'явиться новий через час
+        this.spawnPickaxeWithDelay();
+        break;
+      }
+    }
+  }
+
+  spawnPickaxeWithDelay() {
+    // З'явиться через 3-7 секунд
+    const delay = 3000 + Math.random() * 4000;
+    setTimeout(() => {
+      if (this.isGameActive && !this.playerHasPickaxe) {
+        this.spawnPickaxe();
+      }
+    }, delay);
+  }
+
   startSafeZoneSpawning() {
     this.safeZoneTimeout = setTimeout(() => {
       if (!this.isGameActive || this.isPaused) return;
@@ -987,22 +1442,8 @@ class ZombieApocalypseGame {
         const seconds = this.survivalTime % 60;
         this.timerEl.textContent = `Час виживання: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         
-        // Підвищення рівня кожні 30 секунд
-        const newLevel = Math.floor(this.survivalTime / 30) + 1;
-        if (newLevel > this.playerLevel) {
-          this.playerLevel = newLevel;
-          this.updateStats();
-          this.showEventNotification(`🏆 Рівень ${this.playerLevel}! Більше зомбі!`);
-          
-          // Додаємо нових зомбі
-          const additionalZombies = this.difficulty === 'easy' ? 1 : 
-                                   this.difficulty === 'medium' ? 2 :
-                                   this.difficulty === 'hard' ? 3 : 4;
-          
-          for (let i = 0; i < additionalZombies; i++) {
-            this.spawnZombie();
-          }
-        }
+        // Прибираємо підвищення рівня та додавання нових зомбі
+        // Тепер зомбі з'являються тільки в результаті контакту різних типів
       }
     }, 1000);
   }
@@ -1013,6 +1454,17 @@ class ZombieApocalypseGame {
     document.getElementById('ammoDisplay').textContent = this.playerAmmo;
     document.getElementById('zombieCount').textContent = this.zombies.length;
     document.getElementById('levelDisplay').textContent = this.playerLevel;
+    
+    // Додаємо індикатор топора
+    const pickaxeIndicator = document.getElementById('pickaxeIndicator');
+    if (!pickaxeIndicator) {
+      const statsBar = document.getElementById('statsBar');
+      const pickaxeDiv = document.createElement('div');
+      pickaxeDiv.className = 'stat-item';
+      pickaxeDiv.id = 'pickaxeIndicator';
+      statsBar.appendChild(pickaxeDiv);
+    }
+    document.getElementById('pickaxeIndicator').innerHTML = `🪓 Топор: <span style="color:${this.playerHasPickaxe ? 'gold' : '#666'}">${this.playerHasPickaxe ? 'Є' : 'Немає'}</span>`;
   }
 
   updateStatus(status) {
@@ -1050,8 +1502,8 @@ class ZombieApocalypseGame {
     this.clearAllIntervals();
     
     if (survived) {
-      this.winnerText.textContent = '🏆 ВИЖИВ!';
-      this.winnerMessage.textContent = `Вітаємо! Ви вижили ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')} хвилин!\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
+      this.winnerText.textContent = '🏆 ПЕРЕМОГА!';
+      this.winnerMessage.textContent = `Вітаємо! Ви знищили всіх зомбі та знайшли вихід!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
     } else {
       this.winnerText.textContent = '💀 ЗАГИНУВ!';
       this.winnerMessage.textContent = `Ви не вижили в зомбі-апокаліпсисі!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
@@ -1099,9 +1551,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <div class="instructions">
   <h3>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h3>
-  <p><strong>🎯 Ціль:</strong> Вижити якомога довше, збираючи ресурси та уникаючи зомбі!</p>
-  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для стрільби</p>
-  <p><strong>📋 Правила:</strong> Зелений квадрат - старт. Збирайте патрони, здоров'я та щити. Безпечні зони тимчасово захищають від зомбі!</p>
+  <p><strong>🎯 Ціль:</strong> Знищити всіх зомбі, щоб з'явився вихід, потім дістатися до нього!</p>
+  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для стрільби, E для топора</p>
+  <p><strong>📋 Правила:</strong> Зелений квадрат - старт. Зомбі рухаються за допомогою A* алгоритму. Збирайте патрони, здоров'я, щити та топори. Безпечні зони тимчасово захищають від зомбі!</p>
+  <p><strong>🧟‍♂️ Зомбі:</strong> З'являються ТІЛЬКИ при контакті різних типів. Типи змінюються кожні 10 секунд.</p>
+  <p><strong>💪 Здоров'я зомбі:</strong> Звичайний (2 HP), Швидкий (3 HP), Бос (5 HP)</p>
+  <p><strong>🪓 Топор:</strong> Дозволяє прорубувати стіни для створення нових шляхів!</p>
   <p><strong>🏆 Рівні складності:</strong> Легкий, Середній, Важкий, Кошмар</p>
 </div>
 </body>
