@@ -632,7 +632,8 @@ class ZombieApocalypseGame {
     if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout);
     if (this.knifeTimeout) clearTimeout(this.knifeTimeout);
     if (this.safeZoneTimeout) clearTimeout(this.safeZoneTimeout);
-    
+    if (this.safeZoneAmmoInterval) clearInterval(this.safeZoneAmmoInterval);
+    if (this.safeZoneShieldInterval) clearInterval(this.safeZoneShieldInterval);
     // Скидаємо натиснуті клавіші
     this.pressedKeys.clear();
   }
@@ -890,6 +891,15 @@ class ZombieApocalypseGame {
     const movementKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
     const isMoving = movementKeys.some(key => this.pressedKeys.has(key));
     
+    // Блокування стрільби у безпечній зоні
+    const inSafeZone = this.safeZones.some(sz => 
+      sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+    );
+    if (inSafeZone) {
+      this.showEventNotification('❌ У безпечній зоні не можна атакувати!');
+      return;
+    }
+    
     if (isMoving) {
       this.showEventNotification('❌ Не можна стріляти під час руху! Зупиніться!');
       return;
@@ -919,6 +929,15 @@ class ZombieApocalypseGame {
 
   // Функція ближнього бою ножем (не витрачає патрони)
   meleeAttack() {
+    // Блокування атаки у безпечній зоні
+    const inSafeZone = this.safeZones.some(sz => 
+      sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+    );
+    if (inSafeZone) {
+      this.showEventNotification('❌ У безпечній зоні не можна атакувати!');
+      return;
+    }
+    
     // Перевіряємо чи є ніж
     if (!this.playerHasKnife) {
       this.showEventNotification('❌ Потрібен ніж для ближнього бою!');
@@ -1104,11 +1123,51 @@ class ZombieApocalypseGame {
     );
     
     if (inSafeZone) {
-      this.playerStatusEl.textContent = '🛡️ В безпечній зоні';
+      this.playerStatusEl.textContent = '🔋 Зона поповнення ресурсів! Стійте нерухомо!';
       this.playerStatusEl.style.background = 'rgba(46, 204, 113, 0.8)';
+      // Запускаємо бонуси, якщо ще не запущені
+      if (!this.safeZoneAmmoInterval) {
+        this.safeZoneAmmoInterval = setInterval(() => {
+          if (!this.isGameActive || this.isPaused) return;
+          // Перевіряємо, чи гравець досі у безпечній зоні і стоїть нерухомо
+          const stillInSafeZone = this.safeZones.some(sz => 
+            sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+          );
+          const isMoving = !!this.playerDirection;
+          if (stillInSafeZone && !isMoving) {
+            this.playerAmmo += 1;
+            this.updateStats();
+            this.showEventNotification('🔫 +1 патрон (зона)');
+          }
+        }, 2000);
+      }
+      if (!this.safeZoneShieldInterval) {
+        this.safeZoneShieldInterval = setInterval(() => {
+          if (!this.isGameActive || this.isPaused) return;
+          // Перевіряємо, чи гравець досі у безпечній зоні і стоїть нерухомо
+          const stillInSafeZone = this.safeZones.some(sz => 
+            sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
+          );
+          const isMoving = !!this.playerDirection;
+          if (stillInSafeZone && !isMoving) {
+            this.playerShield = Math.min(100, this.playerShield + 10);
+            this.updateStats();
+            this.showEventNotification('🛡️ +10 щита (зона)');
+          }
+        }, 3000);
+      }
     } else {
       this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
       this.playerStatusEl.style.background = 'rgba(52, 152, 219, 0.8)';
+      // Зупиняємо бонуси, якщо вийшов із зони
+      if (this.safeZoneAmmoInterval) {
+        clearInterval(this.safeZoneAmmoInterval);
+        this.safeZoneAmmoInterval = null;
+      }
+      if (this.safeZoneShieldInterval) {
+        clearInterval(this.safeZoneShieldInterval);
+        this.safeZoneShieldInterval = null;
+      }
     }
   }
 
@@ -1668,7 +1727,7 @@ class ZombieApocalypseGame {
     const pos = this.getRandomEmptyPosition();
     this.safeZones.push(pos);
     this.renderMaze();
-    this.showEventNotification('🛡️ З\'явилася безпечна зона!');
+    this.showEventNotification('🛡️ Зʼявилася безпечна зона!');
     
     setTimeout(() => {
       this.safeZones = this.safeZones.filter(sz => 
@@ -1676,6 +1735,19 @@ class ZombieApocalypseGame {
       );
       this.renderMaze();
       this.showEventNotification('⚠️ Безпечна зона зникла!');
+      // Якщо гравець був у цій зоні — одразу змінити статус і зупинити бонуси
+      if (this.playerPos[0] === pos[0] && this.playerPos[1] === pos[1]) {
+        this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
+        this.playerStatusEl.style.background = 'rgba(52, 152, 219, 0.8)';
+        if (this.safeZoneAmmoInterval) {
+          clearInterval(this.safeZoneAmmoInterval);
+          this.safeZoneAmmoInterval = null;
+        }
+        if (this.safeZoneShieldInterval) {
+          clearInterval(this.safeZoneShieldInterval);
+          this.safeZoneShieldInterval = null;
+        }
+      }
     }, 8000);
   }
 
