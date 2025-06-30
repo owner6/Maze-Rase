@@ -463,6 +463,8 @@ class ZombieApocalypseGame {
     this.eventInterval = null;
     this.itemSpawnInterval = null;
     this.zombieTypeChangeInterval = null;
+    this.collisionCheckInterval = null;
+    this.playerBlockedUntil = 0;
     
     // Статистика гравця
     this.playerHealth = 100;
@@ -492,6 +494,10 @@ class ZombieApocalypseGame {
     this.shieldTimeout = null;
     this.pickaxeTimeout = null;
     this.knifeTimeout = null;
+    
+    // Захист від спаму повідомлень
+    this.lastDamageTime = 0;
+    this.damageCooldown = 1000; // 1 секунда між повідомленнями про пошкодження
     
     // Безпечні зони
     this.safeZones = [];
@@ -591,6 +597,7 @@ class ZombieApocalypseGame {
     if (this.eventInterval) clearInterval(this.eventInterval);
     if (this.itemSpawnInterval) clearInterval(this.itemSpawnInterval);
     if (this.zombieTypeChangeInterval) clearInterval(this.zombieTypeChangeInterval);
+    if (this.collisionCheckInterval) clearInterval(this.collisionCheckInterval);
     if (this.ammoTimeout) clearTimeout(this.ammoTimeout);
     if (this.healthTimeout) clearTimeout(this.healthTimeout);
     if (this.shieldTimeout) clearTimeout(this.shieldTimeout);
@@ -635,6 +642,9 @@ class ZombieApocalypseGame {
     this.exitPos = null;
     this.exitVisible = false;
     
+    // Скидання захисту від спаму
+    this.lastDamageTime = 0;
+    
     // Очищення таймерів
     if (this.ammoTimeout) clearTimeout(this.ammoTimeout);
     if (this.healthTimeout) clearTimeout(this.healthTimeout);
@@ -660,6 +670,7 @@ class ZombieApocalypseGame {
     this.startTimer();
     this.startPlayerAutoMove();
     this.startZombieAI();
+    this.startCollisionCheck();
     this.startItemSpawning();
     this.startSafeZoneSpawning();
     this.startZombieTypeChange();
@@ -982,7 +993,7 @@ class ZombieApocalypseGame {
   startPlayerAutoMove() {
     if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
     this.playerMoveInterval = setInterval(() => {
-      if (!this.isGameActive || this.isPaused || !this.playerDirection) return;
+      if (!this.isGameActive || this.isPaused || !this.playerDirection || Date.now() < this.playerBlockedUntil) return;
       
       const newRow = this.playerPos[0] + this.playerDirection[0];
       const newCol = this.playerPos[1] + this.playerDirection[1];
@@ -992,7 +1003,6 @@ class ZombieApocalypseGame {
         this.checkItemPickup();
         this.checkSafeZone();
         this.renderMaze();
-        this.checkCollision();
       }
     }, 100);
   }
@@ -1070,11 +1080,20 @@ class ZombieApocalypseGame {
     }, 2000);
   }
 
-  moveZombies() {
-    this.moveZombiesGeneric(this.zombies, this.maze, this.playerPos, () => this.checkCollision());
+  startCollisionCheck() {
+    if (this.collisionCheckInterval) clearInterval(this.collisionCheckInterval);
+    
+    this.collisionCheckInterval = setInterval(() => {
+      if (!this.isGameActive || this.isPaused) return;
+      this.checkCollision();
+    }, 50); // Перевіряємо колізію кожні 50мс для більшої точності
   }
 
-  moveZombiesGeneric(zombies, maze, targetPos, collisionCallback) {
+  moveZombies() {
+    this.moveZombiesGeneric(this.zombies, this.maze, this.playerPos);
+  }
+
+  moveZombiesGeneric(zombies, maze, targetPos) {
     for (const zombie of zombies) {
       // Перевіряємо валідність поточного шляху зомбі
       if (zombie.path && zombie.pathIndex < zombie.path.length) {
@@ -1150,7 +1169,7 @@ class ZombieApocalypseGame {
         }
       }
     }
-    collisionCallback();
+    
     // Перевіряємо взаємодії зомбі
     this.checkZombieInteractions(zombies, maze);
     this.renderMaze();
@@ -1389,6 +1408,10 @@ class ZombieApocalypseGame {
         );
         
         if (!inSafeZone) {
+          if (Date.now() > this.playerBlockedUntil) {
+            this.playerBlockedUntil = Date.now() + 3000;
+            this.showEventNotification('🏃‍♂️ Вас знерухомлено на 3 секунди!');
+          }
           const damage = zombie.type === 'boss' ? 30 : zombie.type === 'fast' ? 20 : 15;
           
           if (this.playerShield > 0) {
@@ -1401,7 +1424,13 @@ class ZombieApocalypseGame {
           }
           
           this.updateStats();
-          this.showEventNotification(`💥 Отримано ${damage} пошкоджень!`);
+          
+          // Захист від спаму повідомлень
+          const currentTime = Date.now();
+          if (currentTime - this.lastDamageTime > this.damageCooldown) {
+            this.showEventNotification(`💥 Отримано ${damage} пошкоджень!`);
+            this.lastDamageTime = currentTime;
+          }
           
           if (this.playerHealth <= 0) {
             this.endGame(false);
