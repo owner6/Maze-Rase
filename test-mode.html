@@ -346,6 +346,16 @@
   </style>
 </head>
 <body>
+<!-- Додаю аудіо-елементи -->
+<audio id="audioStart" src="sounds/start.wav"></audio>
+<audio id="audioKnife" src="sounds/knife.wav"></audio>
+<audio id="audioGun" src="sounds/gun.wav"></audio>
+<audio id="audioStep" src="sounds/step.wav"></audio>
+<audio id="audioZombie" src="sounds/zombie.wav"></audio>
+<audio id="audioPickup" src="sounds/pickup.flac"></audio>
+<audio id="audioWin" src="sounds/win.wav"></audio>
+<audio id="audioLose" src="sounds/lose.wav"></audio>
+
 <div class="header">
   <h1>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h1>
 </div>
@@ -524,6 +534,16 @@ class ZombieApocalypseGame {
     
     this.initializeElements();
     this.setupEventListeners();
+    
+    // Додаю аудіо-елементи
+    this.audioStart = document.getElementById('audioStart');
+    this.audioKnife = document.getElementById('audioKnife');
+    this.audioGun = document.getElementById('audioGun');
+    this.audioStep = document.getElementById('audioStep');
+    this.audioZombie = document.getElementById('audioZombie');
+    this.audioPickup = document.getElementById('audioPickup');
+    this.audioWin = document.getElementById('audioWin');
+    this.audioLose = document.getElementById('audioLose');
   }
 
   initializeElements() {
@@ -708,6 +728,8 @@ class ZombieApocalypseGame {
     this.newGameBtn.textContent = '🔄 Нова гра';
     this.pauseBtn.disabled = false;
     this.winnerOverlay.style.display = 'none';
+    
+    if (this.audioStart) { this.audioStart.currentTime = 0; this.audioStart.play(); }
   }
 
   spawnInitialZombies() {
@@ -978,6 +1000,8 @@ class ZombieApocalypseGame {
     } else {
       this.showEventNotification('❌ Немає зомбі для атаки ножем!');
     }
+    
+    if (this.audioKnife) { this.audioKnife.currentTime = 0; this.audioKnife.play(); }
   }
 
   // Функція стрільби (витрачає патрони)
@@ -1023,6 +1047,8 @@ class ZombieApocalypseGame {
     } else {
       this.showEventNotification('🔫 Промах!');
     }
+    
+    if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); }
   }
 
   // Функція пошуку зомбі в прямій видимості для стрільби
@@ -1057,13 +1083,15 @@ class ZombieApocalypseGame {
   startPlayerAutoMove() {
     if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
     this.playerMoveInterval = setInterval(() => {
-      if (!this.isGameActive || this.isPaused || !this.playerDirection || Date.now() < this.playerBlockedUntil) return;
-      
+      if (!this.isGameActive || this.isPaused || Date.now() < this.playerBlockedUntil) return;
+      // Додаємо виклик checkSafeZone завжди
+      this.checkSafeZone();
+      if (!this.playerDirection) return;
       const newRow = this.playerPos[0] + this.playerDirection[0];
       const newCol = this.playerPos[1] + this.playerDirection[1];
-      
       if (this.isValidMove(newRow, newCol)) {
         this.playerPos = [newRow, newCol];
+        if (this.audioStep) { this.audioStep.currentTime = 0; this.audioStep.play(); }
         this.checkItemPickup();
         this.checkSafeZone();
         this.renderMaze();
@@ -1115,6 +1143,8 @@ class ZombieApocalypseGame {
       this.hideKnife();
       this.updateStats();
     }
+    
+    if (picked && this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
   }
 
   checkSafeZone() {
@@ -1200,6 +1230,10 @@ class ZombieApocalypseGame {
       if (now - zombie.lastMoveTime >= zombie.speed) {
         this.moveZombiesGeneric([zombie], this.maze, this.playerPos);
         zombie.lastMoveTime = now;
+        // Звук зомбі, якщо поруч з гравцем
+        if (Math.abs(zombie.pos[0] - this.playerPos[0]) + Math.abs(zombie.pos[1] - this.playerPos[1]) <= 2) {
+          if (this.audioZombie) { this.audioZombie.currentTime = 0; this.audioZombie.play(); }
+        }
       }
     }
     // Після руху всіх зомбі — перевіряємо взаємодії
@@ -1471,24 +1505,24 @@ class ZombieApocalypseGame {
       const zombieToChange = this.zombies[randomZombieIndex];
       const newType = Math.random() < 0.1 ? 'boss' : 
                      Math.random() < 0.3 ? 'fast' : 'normal';
-      
-      // Встановлюємо нове здоров'я відповідно до типу
-      let newHealth;
+      // Встановлюємо нове maxHealth відповідно до типу
+      let newMaxHealth;
       switch(newType) {
         case 'boss':
-          newHealth = 5;
+          newMaxHealth = 5;
           break;
         case 'fast':
-          newHealth = 3;
+          newMaxHealth = 3;
           break;
         default:
-          newHealth = 2;
+          newMaxHealth = 2;
           break;
       }
-      
+      // Зберігаємо відсоток здоров'я
+      const percent = zombieToChange.health / zombieToChange.maxHealth;
       zombieToChange.type = newType;
-      zombieToChange.health = newHealth;
-      zombieToChange.maxHealth = newHealth;
+      zombieToChange.maxHealth = newMaxHealth;
+      zombieToChange.health = Math.max(1, Math.round(percent * newMaxHealth));
       zombieToChange.speed = newType === 'fast' ? 80 : newType === 'boss' ? 220 : 140;
       this.renderMaze();
       this.updateStats();
@@ -1837,9 +1871,11 @@ class ZombieApocalypseGame {
     if (survived) {
       this.winnerText.textContent = '🏆 ПЕРЕМОГА!';
       this.winnerMessage.textContent = `Вітаємо! Ви знищили всіх зомбі та знайшли вихід!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
+      if (this.audioWin) { this.audioWin.currentTime = 0; this.audioWin.play(); }
     } else {
       this.winnerText.textContent = '💀 ЗАГИНУВ!';
       this.winnerMessage.textContent = `Ви не вижили в зомбі-апокаліпсисі!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
+      if (this.audioLose) { this.audioLose.currentTime = 0; this.audioLose.play(); }
     }
     
     this.winnerOverlay.style.display = 'flex';
