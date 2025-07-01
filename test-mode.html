@@ -352,7 +352,7 @@
 <audio id="audioGun" src="sounds/gun.wav"></audio>
 <audio id="audioStep" src="sounds/step.wav"></audio>
 <audio id="audioZombie" src="sounds/zombie.wav"></audio>
-<audio id="audioPickup" src="sounds/pickup.flac"></audio>
+<audio id="audioPickup" src="sounds/pickup.wav"></audio>
 <audio id="audioWin" src="sounds/win.wav"></audio>
 <audio id="audioLose" src="sounds/lose.wav"></audio>
 
@@ -1103,12 +1103,14 @@ class ZombieApocalypseGame {
   }
 
   checkItemPickup() {
+    let picked = false;
     // Перевірка підбору патронів
     if (this.ammoVisible && this.ammoPos && 
         this.playerPos[0] === this.ammoPos[0] && this.playerPos[1] === this.ammoPos[1]) {
       this.playerAmmo += 5;
       this.hideAmmo();
       this.updateStats();
+      picked = true;
     }
     
     // Перевірка підбору здоров'я
@@ -1117,6 +1119,7 @@ class ZombieApocalypseGame {
       this.playerHealth = Math.min(100, this.playerHealth + 25);
       this.hideHealth();
       this.updateStats();
+      picked = true;
     }
     
     // Перевірка підбору щита
@@ -1125,6 +1128,7 @@ class ZombieApocalypseGame {
       this.playerShield = Math.min(100, this.playerShield + 50);
       this.hideShield();
       this.updateStats();
+      picked = true;
     }
     
     // Перевірка підбору топора
@@ -1133,6 +1137,7 @@ class ZombieApocalypseGame {
       this.playerHasPickaxe = true;
       this.hidePickaxe();
       this.updateStats();
+      picked = true;
     }
     
     // Перевірка підбору ножа
@@ -1141,6 +1146,7 @@ class ZombieApocalypseGame {
       this.playerHasKnife = true;
       this.hideKnife();
       this.updateStats();
+      picked = true;
     }
     
     if (picked && this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
