@@ -76,8 +76,8 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
       border: 1px solid rgba(255,255,255,0.1);
-      max-width: 800px;
-      width: 100%;
+      max-width: unset;
+      width: auto;
     }
 
     .player-info {
@@ -122,8 +122,8 @@
     }
 
     .cell {
-      width: 18px;
-      height: 18px;
+      width: 14px;
+      height: 14px;
       border: 0.5px solid rgba(52, 73, 94, 0.5);
     }
 
@@ -308,8 +308,8 @@
 
     @media (max-width: 768px) {
       .cell {
-        width: 13px;
-        height: 13px;
+        width: 7px;
+        height: 7px;
       }
 
       .header h1 {
@@ -455,7 +455,7 @@ class MazeGenerator {
 
 class ZombieApocalypseGame {
   constructor() {
-    this.size = 31;
+    this.size = 45;
     this.maze = null;
     this.playerPos = [1, 1];
     this.isGameActive = false;
@@ -515,9 +515,9 @@ class ZombieApocalypseGame {
     
     // Налаштування складності
     this.difficulty = 'easy';
-    this.zombieSpawnRate = 5000;
-    this.itemSpawnRate = 8000;
-    this.safeZoneRate = 15000;
+    this.zombieSpawnRate = 4000; // швидше
+    this.itemSpawnRate = 6000;   // частіше
+    this.safeZoneRate = 12000;   // частіше
     
     // Система відстеження натиснутих клавіш руху
     this.pressedKeys = new Set();
@@ -596,24 +596,24 @@ class ZombieApocalypseGame {
   updateDifficultySettings() {
     switch(this.difficulty) {
       case 'easy':
-        this.zombieSpawnRate = 5000;
-        this.itemSpawnRate = 8000;
-        this.safeZoneRate = 15000;
-        break;
-      case 'medium':
         this.zombieSpawnRate = 4000;
-        this.itemSpawnRate = 7000;
+        this.itemSpawnRate = 6000;
         this.safeZoneRate = 12000;
         break;
-      case 'hard':
+      case 'medium':
         this.zombieSpawnRate = 3000;
-        this.itemSpawnRate = 6000;
+        this.itemSpawnRate = 5000;
         this.safeZoneRate = 10000;
         break;
-      case 'nightmare':
+      case 'hard':
         this.zombieSpawnRate = 2000;
-        this.itemSpawnRate = 5000;
+        this.itemSpawnRate = 4000;
         this.safeZoneRate = 8000;
+        break;
+      case 'nightmare':
+        this.zombieSpawnRate = 1500;
+        this.itemSpawnRate = 3000;
+        this.safeZoneRate = 6000;
         break;
     }
   }
@@ -711,9 +711,9 @@ class ZombieApocalypseGame {
   }
 
   spawnInitialZombies() {
-    const initialZombieCount = this.difficulty === 'easy' ? 3 : 
-                              this.difficulty === 'medium' ? 5 :
-                              this.difficulty === 'hard' ? 8 : 12;
+    const initialZombieCount = this.difficulty === 'easy' ? 7 : 
+                              this.difficulty === 'medium' ? 12 :
+                              this.difficulty === 'hard' ? 18 : 25;
     
     for (let i = 0; i < initialZombieCount; i++) {
       this.spawnZombie();
@@ -1948,7 +1948,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <nav style="margin-bottom: 18px;">
   <a href="index.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">Головна</a>
   <a href="global.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">GLOBAL</a>
-  <a href="test-mode-experimental.html" style="color:#fff; font-weight:bold; text-decoration:none;">test-mod experimental</a>
+  <a href="test-mode.html" style="color:#fff; font-weight:bold; text-decoration:none;">test mode</a>
   <a href="standings.html" style="color:#fff; font-weight:bold; text-decoration:none;">Турнірна таблиця</a>
 </nav>
 

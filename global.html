@@ -12,8 +12,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 100vh;
-      padding: 20px;
+      min-height: 0vh;
+      padding: 0px;
     }
     .header { text-align: center; margin-bottom: 0px; }
     .header h1 { font-size: 2 em; margin-bottom: 0px; }
@@ -47,8 +47,8 @@
       background: #2c3e50;
     }
     .cell {
-      width: 10px;
-      height: 10px;
+      width: 11px;
+      height: 11px;
       border: 0.5px solid rgba(52, 73, 94, 0.3);
       box-sizing: border-box;
     }
@@ -59,13 +59,21 @@
     .player { background: #3498db; box-shadow: 0 0 10px #3498db; }
     .computer { background: #e67e22; box-shadow: 0 0 10px #e67e22; }
     .timer {
-      font-size: 2 em;
-      margin: 0px 0;
-      padding: 10px 10px;
+      font-size: 1em;
+      padding: 0px 0px;
       background: rgba(0,0,0,0.3);
       border-radius: 15px;
+      margin: 0;
+      min-width: 50px;
+      text-align: center;
     }
-    .status-bar { display: flex; gap: 30px; margin-bottom: 10px; }
+    .status-bar {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 10px;
+      align-items: center;
+      justify-content: center;
+    }
     .player-status, .computer-status {
       font-size: 1 em;
       padding: 3px 10px;
@@ -166,8 +174,8 @@
 <div class="status-bar">
   <div class="player-status" id="playerStatus">Игрок: Готов</div>
   <div class="computer-status" id="computerStatus">Компьютер: Готов</div>
+  <div class="timer" id="timer">Время: 00:00</div>
 </div>
-<div class="timer" id="timer">Время: 00:00</div>
 <div class="maze-container">
   <div class="maze" id="maze"></div>
 </div>
@@ -1016,6 +1024,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <nav style="margin-bottom: 18px;">
   <a href="index.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">Головна</a>
   <a href="test-mode.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">test-mode</a>
+  <a href="test-mode-experimental.html" style="color:#fff; font-weight:bold; text-decoration:none;">test-mode-experimental</a>
   <a href="standings.html" style="color:#fff; font-weight:bold; text-decoration:none;">Турнірна таблиця</a>
 </nav>
 </body>
