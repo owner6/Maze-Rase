@@ -365,6 +365,10 @@
       top: 50%;
       transform: translate(-50%, -50%);
     }
+    .mine-cell.mine-item {
+      background: #ffe066 !important;
+      border: 2px solid #ffd700 !important;
+    }
   </style>
 </head>
 <body>
@@ -706,6 +710,7 @@ class ZombieApocalypseGame {
     this.playerLevel = 1;
     this.zombiesKilled = 0;
     this.survivalTime = 0;
+    this.playerMines = 0;
     
     // Скидання предметів
     this.ammoPos = null;
@@ -909,11 +914,12 @@ class ZombieApocalypseGame {
         
         // Міна
         if (this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1]) {
-          cell.classList.add('mine-cell');
+          cell.classList.add('mine-cell', 'mine-item');
+          cell.innerHTML = '<span style="font-size:13px;">💣</span>';
         }
         
         // Активные мины
-        if (this.activeMines.some(m => m[0] === row && m[1] === col)) {
+        if (this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col)) {
           cell.classList.add('mine-cell');
           cell.style.border = '2px solid #ff2222';
         }
@@ -1274,6 +1280,7 @@ class ZombieApocalypseGame {
     const now = Date.now();
     for (const zombie of this.zombies) {
       if (!zombie.lastMoveTime) zombie.lastMoveTime = now;
+      if (zombie.stunnedUntil && now < zombie.stunnedUntil) continue;
       if (now - zombie.lastMoveTime >= zombie.speed) {
         this.moveZombiesGeneric([zombie], this.maze, this.playerPos);
         zombie.lastMoveTime = now;
@@ -1289,6 +1296,7 @@ class ZombieApocalypseGame {
     this.updateStats();
     // После движения зомби проверяем взрыв мин
     this.checkMinesExplosion();
+    this.checkPlayerMineExplosion();
   }
 
   moveZombiesGeneric(zombies, maze, targetPos) {
@@ -2058,15 +2066,21 @@ class ZombieApocalypseGame {
   checkMinesExplosion() {
     // Проверяем, есть ли зомби на клетке с миной
     for (let i = this.activeMines.length - 1; i >= 0; i--) {
-      const [mineRow, mineCol] = this.activeMines[i];
+      const {pos: [mineRow, mineCol]} = this.activeMines[i];
       const zombieIndex = this.zombies.findIndex(z => z.pos[0] === mineRow && z.pos[1] === mineCol);
       if (zombieIndex !== -1) {
-        // Взрыв: удаляем зомби и мину
-        this.zombies.splice(zombieIndex, 1);
+        const zombie = this.zombies[zombieIndex];
+        const mineDamage = Math.floor(Math.random() * 5) + 1;
+        zombie.health -= mineDamage;
+        zombie.stunnedUntil = Date.now() + 1000;
+        if (zombie.health <= 0) {
+          this.zombies.splice(zombieIndex, 1);
+          this.zombiesKilled++;
+          this.showEventNotification(`💥 Міна знищила зомбі! (${mineDamage} урону)`);
+        } else {
+          this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
+        }
         this.activeMines.splice(i, 1);
-        this.zombiesKilled++;
-        this.showEventNotification('💥 Міна знищила зомбі!');
-        // Можно добавить звук взрыва, если есть
         this.renderMaze();
         this.updateStats();
       }
@@ -2077,20 +2091,58 @@ class ZombieApocalypseGame {
     if (this.playerMines > 0) {
       // Проверяем, что на клетке нет стены, предмета, другой активной мины
       const [row, col] = this.playerPos;
+      const isInSafeZone = this.safeZones.some(sz => sz[0] === row && sz[1] === col);
+      const isStart = row === 1 && col === 1;
       if (
+        this.playerMines > 0 &&
         this.maze[row][col] === 0 &&
-        !this.activeMines.some(m => m[0] === row && m[1] === col) &&
+        !this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col) &&
         !(this.ammoVisible && this.ammoPos && row === this.ammoPos[0] && col === this.ammoPos[1]) &&
         !(this.healthVisible && this.healthPos && row === this.healthPos[0] && col === this.healthPos[1]) &&
         !(this.shieldVisible && this.shieldPos && row === this.shieldPos[0] && col === this.shieldPos[1]) &&
         !(this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) &&
         !(this.knifeVisible && this.knifePos && row === this.knifePos[0] && col === this.knifePos[1]) &&
-        !(this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1])
+        !(this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1]) &&
+        !isInSafeZone &&
+        !isStart
       ) {
-        this.activeMines.push([row, col]);
+        this.activeMines.push({pos: [row, col], placedAt: Date.now()});
         this.playerMines--;
         this.updateStats();
         this.renderMaze();
+      } else if (this.playerMines > 0) {
+        this.showEventNotification('❌ Неможливо встановити міну тут!');
+      } else {
+        this.showEventNotification('❌ У вас немає мін!');
+      }
+    }
+  }
+
+  checkPlayerMineExplosion() {
+    for (let i = this.activeMines.length - 1; i >= 0; i--) {
+      const {pos: [mineRow, mineCol], placedAt} = this.activeMines[i];
+      if (this.playerPos[0] === mineRow && this.playerPos[1] === mineCol) {
+        // Не подрываемся, если с момента установки прошло меньше 1 секунды
+        if (Date.now() - placedAt < 300) continue;
+        this.activeMines.splice(i, 1);
+        // Было: const damage = 40;
+        const damage = Math.floor(Math.random() * 200) + 1; // 1-200 урона
+        if (this.playerShield > 0) {
+          const shieldDamage = Math.min(this.playerShield, damage);
+          this.playerShield -= shieldDamage;
+          const remainingDamage = damage - shieldDamage;
+          this.playerHealth -= remainingDamage;
+        } else {
+          this.playerHealth -= damage;
+        }
+        this.playerBlockedUntil = Date.now() + 3000;
+        this.updateStats();
+        this.showEventNotification(`💥 Ви підірвалися на міні! -${damage} HP`);
+        if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
+        this.renderMaze();
+        if (this.playerHealth <= 0) {
+          this.endGame(false);
+        }
       }
     }
   }
