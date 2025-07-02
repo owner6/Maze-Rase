@@ -616,6 +616,15 @@ class ZombieApocalypseGame {
         };
         this.playerDirection = keyMap[e.code];
       }
+      // --- Додаємо прапорець для пробілу ---
+      if (e.code === 'Space') {
+        if (!this.spacePressed) {
+          this.spacePressed = true;
+          this.handleKeyPress(e);
+        }
+        e.preventDefault();
+        return;
+      }
       this.handleKeyPress(e);
       // Установка мины по X
       if (e.code === 'KeyX') {
@@ -641,6 +650,10 @@ class ZombieApocalypseGame {
           };
           this.playerDirection = keyMap[lastKey];
         }
+      }
+      // --- Скидаємо прапорець для пробілу ---
+      if (e.code === 'Space') {
+        this.spacePressed = false;
       }
     });
     
@@ -1558,6 +1571,11 @@ class ZombieApocalypseGame {
     
     // Оновлюємо статистику після зміни кількості зомбі
     this.updateStats();
+    // Додаємо: якщо зомбі не залишилось і вихід ще не зʼявився, зʼявляється вихід
+    if (this.zombies.length === 0 && !this.exitVisible) {
+      this.spawnExit();
+      this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+    }
   }
 
   startZombieTypeChange() {
@@ -1847,25 +1865,27 @@ class ZombieApocalypseGame {
   }
 
   startSafeZoneSpawning() {
+    // Додаємо затримку перед першою появою безпечної зони (наприклад, 3-10 секунд)
+    const initialDelay = 3000 + Math.random() * 7000; // 3-10 секунд
     this.safeZoneTimeout = setTimeout(() => {
       if (!this.isGameActive || this.isPaused) return;
       this.spawnSafeZone();
-      this.startSafeZoneSpawning();
-    }, this.safeZoneRate);
+    }, initialDelay);
   }
 
   spawnSafeZone() {
+    this.safeZones = []; // очищаємо всі попередні зони
     const pos = this.getRandomEmptyPosition();
     this.safeZones.push(pos);
     this.renderMaze();
     this.showEventNotification('🛡️ Зʼявилася безпечна зона!');
-    
+    // Зона існує рандомний час (6-14 секунд), потім зникає
+    const zoneDuration = 6000 + Math.random() * 8000; // 6-14 секунд
     setTimeout(() => {
       this.safeZones = this.safeZones.filter(sz => 
         !(sz[0] === pos[0] && sz[1] === pos[1])
       );
       this.renderMaze();
-      this.showEventNotification('⚠️ Безпечна зона зникла!');
       // Якщо гравець був у цій зоні — одразу змінити статус і зупинити бонуси
       if (this.playerPos[0] === pos[0] && this.playerPos[1] === pos[1]) {
         this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
@@ -1879,7 +1899,13 @@ class ZombieApocalypseGame {
           this.safeZoneShieldInterval = null;
         }
       }
-    }, 8000);
+      // Після зникнення зони чекаємо паузу і тільки потім зʼявиться нова
+      const pauseAfterZone = 5000 + Math.random() * 10000; // 5-15 секунд
+      this.safeZoneTimeout = setTimeout(() => {
+        if (!this.isGameActive || this.isPaused) return;
+        this.spawnSafeZone();
+      }, pauseAfterZone);
+    }, zoneDuration);
   }
 
   startTimer() {
@@ -2094,9 +2120,15 @@ class ZombieApocalypseGame {
         } else {
           this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
         }
+        if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
         this.activeMines.splice(i, 1);
         this.renderMaze();
         this.updateStats();
+        // Додаємо: якщо зомбі не залишилось і вихід ще не зʼявився, зʼявляється вихід
+        if (this.zombies.length === 0 && !this.exitVisible) {
+          this.spawnExit();
+          this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+        }
       }
     }
   }
@@ -2107,6 +2139,7 @@ class ZombieApocalypseGame {
       // Запрещаем ставить мину в безопасной зоне и на старте
       const isInSafeZone = this.safeZones.some(sz => sz[0] === row && sz[1] === col);
       const isStart = row === 1 && col === 1;
+      const isZombieOnPlayer = this.zombies.some(z => z.pos[0] === row && z.pos[1] === col);
       if (
         this.maze[row][col] === 0 &&
         !this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col) &&
@@ -2117,13 +2150,16 @@ class ZombieApocalypseGame {
         !(this.knifeVisible && this.knifePos && row === this.knifePos[0] && col === this.knifePos[1]) &&
         !(this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1]) &&
         !isInSafeZone &&
-        !isStart
+        !isStart &&
+        !isZombieOnPlayer
       ) {
         this.activeMines.push({pos: [row, col], placedAt: Date.now()});
         this.playerMines--;
         this.updateStats();
         if (this.audioMinePlace) { this.audioMinePlace.currentTime = 0; this.audioMinePlace.play(); }
         this.renderMaze();
+      } else if (isZombieOnPlayer) {
+        this.showEventNotification('❌ Не можна ставити міну, коли на клітинці є зомбі!');
       } else {
         this.showEventNotification('❌ Неможливо встановити міну тут!');
       }

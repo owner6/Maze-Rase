@@ -381,6 +381,7 @@
 <audio id="audioPickup" src="sounds/pickup.wav"></audio>
 <audio id="audioWin" src="sounds/win.wav"></audio>
 <audio id="audioLose" src="sounds/lose.wav"></audio>
+<audio id="audioMineExplosion" src="sounds/mine-explosion.flac"></audio>
 
 <div class="header">
   <h1>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h1>
@@ -567,6 +568,7 @@ class ZombieApocalypseGame {
     this.audioPickup = document.getElementById('audioPickup');
     this.audioWin = document.getElementById('audioWin');
     this.audioLose = document.getElementById('audioLose');
+    this.audioMineExplosion = document.getElementById('audioMineExplosion');
     
     this.minePos = null;
     this.mineVisible = false;
@@ -2080,6 +2082,7 @@ class ZombieApocalypseGame {
         } else {
           this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
         }
+        if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
         this.activeMines.splice(i, 1);
         this.renderMaze();
         this.updateStats();
