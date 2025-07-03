@@ -790,7 +790,7 @@ class ZombieApocalypseGame {
     this.playerHasKnife = false;
     this.minePos = null;
     this.mineVisible = false;
-    this.playerMines = 0;
+    this.playerMines = 10;
     this.safeZones = [];
     this.exitPos = null;
     this.exitVisible = false;
@@ -1183,19 +1183,11 @@ class ZombieApocalypseGame {
   }
 
   isValidMove(row, col, entityType = 'zombie') {
-      if (!(row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0)) {
-          return false;
-      }
-      // Заборона для всіх наступати на міни, встановлені гравцем
-      const playerMine = this.activeMines.find(m => m.pos[0] === row && m.pos[1] === col && m.placedBy === 'player');
-      if (playerMine) return false;
-
-      // Тільки гравцю заборонено наступати на міни зомбі
-      if (entityType === 'player') {
-          const zombieMine = this.activeMines.find(m => m.pos[0] === row && m.pos[1] === col && m.placedBy === 'zombie');
-          if (zombieMine) return false;
-      }
-      return true;
+    if (!(row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0)) {
+        return false;
+    }
+    // Зомбі можуть проходити через всі міни зомбі, гравець може наступати на будь-які міни
+    return true;
   }
 
   checkItemPickup() {
