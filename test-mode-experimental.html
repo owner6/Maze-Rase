@@ -1865,23 +1865,25 @@ class ZombieApocalypseGame {
   }
 
   startSafeZoneSpawning() {
-    // Додаємо затримку перед першою появою безпечної зони (наприклад, 3-10 секунд)
+    // Запускаємо цикл появи/зникнення безпечної зони
     const initialDelay = 3000 + Math.random() * 7000; // 3-10 секунд
     this.safeZoneTimeout = setTimeout(() => {
       if (!this.isGameActive || this.isPaused) return;
-      this.spawnSafeZone();
+      this.safeZoneCycle();
     }, initialDelay);
   }
 
-  spawnSafeZone() {
-    this.safeZones = []; // очищаємо всі попередні зони
+  safeZoneCycle() {
+    // Поява зони
+    this.safeZones = [];
     const pos = this.getRandomEmptyPosition();
     this.safeZones.push(pos);
     this.renderMaze();
     this.showEventNotification('🛡️ Зʼявилася безпечна зона!');
-    // Зона існує рандомний час (6-14 секунд), потім зникає
+    // Зона існує 6-14 секунд, потім зникає
     const zoneDuration = 6000 + Math.random() * 8000; // 6-14 секунд
-    setTimeout(() => {
+    this.safeZoneTimeout = setTimeout(() => {
+      // Зникає зона
       this.safeZones = this.safeZones.filter(sz => 
         !(sz[0] === pos[0] && sz[1] === pos[1])
       );
@@ -1899,12 +1901,11 @@ class ZombieApocalypseGame {
           this.safeZoneShieldInterval = null;
         }
       }
-      // Після зникнення зони чекаємо паузу і тільки потім зʼявиться нова
-      const pauseAfterZone = 5000 + Math.random() * 10000; // 5-15 секунд
+      // Пауза 10 секунд перед наступною появою зони
       this.safeZoneTimeout = setTimeout(() => {
         if (!this.isGameActive || this.isPaused) return;
-        this.spawnSafeZone();
-      }, pauseAfterZone);
+        this.safeZoneCycle();
+      }, 10000); // 10 секунд
     }, zoneDuration);
   }
 
