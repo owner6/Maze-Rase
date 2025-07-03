@@ -1406,10 +1406,11 @@ class ZombieApocalypseGame {
     if (!this.isGameActive || this.isPaused || zombie.inventory.ammo <= 0) return;
     
     zombie.inventory.ammo--;
-    if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); }
+    // if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); } // видаляємо цей рядок
 
     // Така ж вірогідність попадання, як у гравця (50% шанс)
     if (Math.random() >= 0.5) {
+        if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); } // додаємо сюди
         this.showEventNotification(`🧟‍♂️ Зомбі влучив у вас!`);
         let damage = 15;
         if (zombie.inventory && zombie.inventory.hasKnife) {
