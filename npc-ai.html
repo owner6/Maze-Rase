@@ -790,7 +790,7 @@ class ZombieApocalypseGame {
     this.playerHasKnife = false;
     this.minePos = null;
     this.mineVisible = false;
-    this.playerMines = 10;
+    this.playerMines = 0;
     this.safeZones = [];
     this.exitPos = null;
     this.exitVisible = false;
@@ -1186,7 +1186,10 @@ class ZombieApocalypseGame {
     if (!(row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0)) {
         return false;
     }
-    // Зомбі можуть проходити через всі міни зомбі, гравець може наступати на будь-які міни
+    // Заборона для зомбі заходити у зону безпеки
+    if (entityType === 'zombie' && this.safeZones.some(sz => sz[0] === row && sz[1] === col)) {
+        return false;
+    }
     return true;
   }
 
