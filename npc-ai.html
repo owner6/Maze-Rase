@@ -76,7 +76,7 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
       border: 1px solid rgba(255,255,255,0.1);
-      max-width: 1000px;
+      max-width: 1200px;
       width: 100%;
     }
 
@@ -121,8 +121,8 @@
     }
 
     .cell {
-      width: 20px;
-      height: 20px;
+      width: 15px;
+      height: 15px;
       border: 0.5px solid rgba(52, 73, 94, 0.5);
     }
 
@@ -369,10 +369,13 @@
       background: #ffe066 !important;
       border: 2px solid #ffd700 !important;
     }
+    /* Mine placed by zombie */
+    .zombie-mine-cell {
+      border: 2px solid #8A2BE2 !important; /* Violet border */
+    }
   </style>
 </head>
 <body>
-<!-- Додаю аудіо-елементи -->
 <audio id="audioStart" src="sounds/start.wav"></audio>
 <audio id="audioKnife" src="sounds/knife.wav"></audio>
 <audio id="audioGun" src="sounds/gun.wav"></audio>
@@ -499,7 +502,7 @@ class MazeGenerator {
 
 class ZombieApocalypseGame {
   constructor() {
-    this.size = 31;
+    this.size = 45;
     this.maze = null;
     this.playerPos = [1, 1];
     this.isGameActive = false;
@@ -593,7 +596,8 @@ class ZombieApocalypseGame {
     this.audioBreakWall = document.getElementById('audioBreakWall');
     this.audioPlayerDeath = document.getElementById('audioPlayerDeath');
     this.wasInSafeZone = false;
-    this.zombieLastSeenState = new Map();
+    
+    this.zombieLastSeenState = new Map(); // Для контролю звуку появи у полі зору
   }
 
   initializeElements() {
@@ -615,7 +619,7 @@ class ZombieApocalypseGame {
     this.playAgainBtn.addEventListener('click', () => this.newGame());
 
     document.getElementById('helpBtn').addEventListener('click', () => {
-      alert('🧟‍♂️ ЗОМБІ-АПОКАЛІПСИС: ЛАБІРИНТ ВИЖИВАННЯ\n\n🎯 Ціль: Знищити всіх зомбі, щоб з\'явився червоний квадрат (вихід), потім дістатися до нього!\n\n🎮 Керування:\n• Стрілки ←↑↓→ або WASD для руху\n• Пробіл для атаки (тільки коли стоїте)\n• E для використання топора (якщо є)\n• X для встановлення міни\n\n⚔️ Бойова система:\n• Ближній бій (зомбі на вашій клітинці): Потрібен ніж, патрони не витрачаються.\n• Стрільба (зомбі на відстані): Потрібні патрони, ніж не потрібен.\n• Без ножа неможливо атакувати в ближньому бою!\n• Без патронів неможливо стріляти!\n\n📋 Інше:\n• Зелений квадрат - старт\n• Зомбі рухаються за допомогою A* алгоритму\n• Збирайте патрони, здоров\'я, щити та топори\n• Топор дозволяє прорубувати стіни (кнопка E)\n• Безпечні зони тимчасово захищають від зомбі\n• Зомбі з\'являються ТІЛЬКИ при контакті різних типів\n• Типи зомбі змінюються кожні 10 секунд\n• Здоров\'я зомбі: Звичайний(2), Швидкий(3), Бос(5)');
+      alert('🧟‍♂️ ЗОМБІ-АПОКАЛІПСИС: ЛАБІРИНТ ВИЖИВАННЯ\n\n🎯 Ціль: Знищити всіх зомбі, щоб з\'явився червоний квадрат (вихід), потім дістатися до нього!\n\n🎮 Керування:\n• Стрілки ←↑↓→ або WASD для руху\n• Пробіл для атаки (тільки коли стоїте)\n• E для використання топора (якщо є)\n\n⚔️ Бойова система:\n• Ближній бій (зомбі на вашій клітинці): Потрібен ніж, патрони не витрачаються.\n• Стрільба (зомбі на відстані): Потрібні патрони, ніж не потрібен.\n• Без ножа неможливо атакувати в ближньому бою!\n• Без патронів неможливо стріляти!\n\n📋 Інше:\n• Зелений квадрат - старт\n• Зомбі рухаються за допомогою A* алгоритму\n• Збирайте патрони, здоров\'я, щити та топори\n• Топор дозволяє прорубувати стіни (кнопка E)\n• Безпечні зони тимчасово захищають від зомбі\n• Зомбі з\'являються ТІЛЬКИ при контакті різних типів\n• Типи зомбі змінюються кожні 10 секунд\n• Здоров\'я зомбі: Звичайний(2), Швидкий(3), Бос(5)');
     });
 
     // Обробники для відстеження натиснутих клавіш руху
@@ -818,32 +822,35 @@ class ZombieApocalypseGame {
     const zombieType = Math.random() < 0.1 ? 'boss' : 
                       Math.random() < 0.3 ? 'fast' : 'normal';
     
-    // Різна кількість здоров'я для різних типів зомбі
     let health;
     switch(zombieType) {
-      case 'boss':
-        health = 5; // Бос зомбі - найміцніший
-        break;
-      case 'fast':
-        health = 3; // Швидкий зомбі - середня міцність
-        break;
-      default:
-        health = 2; // Звичайний зомбі - найслабший
-        break;
+      case 'boss': health = 5; break;
+      case 'fast': health = 3; break;
+      default: health = 2; break;
     }
     
     this.zombies.push({
       pos: pos,
       type: zombieType,
       health: health,
-      maxHealth: health, // Додаємо максимальне здоров'я для відображення
+      maxHealth: health,
       speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 220 : 140,
       state: 'patrolling',
       direction: [0, 1],
       path: [],
       pathIndex: 0,
-      lastMoveTime: Date.now(), // Додаємо lastMoveTime для індивідуального руху
-      stunnedUntil: 0 // Добавляем время оглушения
+      lastMoveTime: Date.now(),
+      stunnedUntil: 0,
+      lastShotTime: 0,
+      // === НОВИЙ ІНВЕНТАР ЗОМБІ ===
+      inventory: {
+        shield: 0,
+        ammo: 0,
+        level: 1,
+        hasPickaxe: false,
+        hasKnife: false,
+        mines: 0
+      }
     });
   }
 
@@ -876,22 +883,16 @@ class ZombieApocalypseGame {
           cell.classList.add('path');
         }
         
-        // Старт
-        if (row === 1 && col === 1) {
-          cell.classList.add('start');
-        }
+        if (row === 1 && col === 1) cell.classList.add('start');
         
-        // Вихід (тільки якщо всі зомбі знищені)
         if (this.exitVisible && this.exitPos && row === this.exitPos[0] && col === this.exitPos[1]) {
           cell.classList.add('end');
         }
         
-        // Гравець
         if (row === this.playerPos[0] && col === this.playerPos[1]) {
           cell.classList.add('player');
         }
         
-        // Зомбі
         for (const zombie of this.zombies) {
           if (row === zombie.pos[0] && col === zombie.pos[1]) {
             cell.classList.add('zombie');
@@ -900,21 +901,15 @@ class ZombieApocalypseGame {
               cell.classList.add('zombie-boss');
               cell.innerHTML = '<span style="font-size:15px;">💀</span>';
             }
-            
-            // Додаємо індикатор здоров'я зомбі
             if (zombie.health < zombie.maxHealth) {
               const healthPercent = (zombie.health / zombie.maxHealth) * 100;
-              let healthColor = '#00ff00'; // Зелений
-              if (healthPercent < 50) healthColor = '#ffff00'; // Жовтий
-              if (healthPercent < 25) healthColor = '#ff0000'; // Червоний
-              
+              let healthColor = healthPercent < 25 ? '#ff0000' : healthPercent < 50 ? '#ffff00' : '#00ff00';
               cell.style.border = `2px solid ${healthColor}`;
               cell.style.boxShadow = `0 0 8px ${healthColor}`;
             }
           }
         }
         
-        // Предмети
         if (this.ammoVisible && this.ammoPos && row === this.ammoPos[0] && col === this.ammoPos[1]) {
           cell.classList.add('ammo-cell');
           cell.innerHTML = '<span style="font-size:12px;">🔫</span>';
@@ -930,32 +925,33 @@ class ZombieApocalypseGame {
           cell.innerHTML = '<span style="font-size:12px;">🛡️</span>';
         }
         
-        // Топор
         if (this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) {
           cell.classList.add('pickaxe-cell');
           cell.innerHTML = '<span style="font-size:12px;">🪓</span>';
         }
         
-        // Ніж
         if (this.knifeVisible && this.knifePos && row === this.knifePos[0] && col === this.knifePos[1]) {
           cell.classList.add('knife-cell');
           cell.innerHTML = '<span style="font-size:12px;">🔪</span>';
         }
         
-        // Безпечні зони
         if (this.safeZones.some(sz => sz[0] === row && sz[1] === col)) {
           cell.classList.add('safe-zone');
         }
         
-        // Міна
         if (this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1]) {
           cell.classList.add('mine-cell', 'mine-item');
           cell.innerHTML = '<span style="font-size:13px;">💣</span>';
         }
-        // Активные мины
-        if (this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col)) {
-          cell.classList.add('mine-cell');
-          cell.style.border = '2px solid #ff2222';
+        
+        const activeMine = this.activeMines.find(m => m.pos[0] === row && m.pos[1] === col);
+        if (activeMine) {
+            cell.classList.add('mine-cell');
+            if (activeMine.placedBy === 'player') {
+                cell.style.border = '2px solid #ff2222';
+            } else { // Zombie mine
+                cell.classList.add('zombie-mine-cell');
+            }
         }
         
         this.mazeEl.appendChild(cell);
@@ -979,24 +975,20 @@ class ZombieApocalypseGame {
       this.playerDirection = direction;
     }
     
-    // Стрільба (пробіл)
     if (e.code === 'Space') {
       e.preventDefault();
       this.shoot();
     }
     
-    // Використання топора (E)
     if (e.code === 'KeyE' && this.playerHasPickaxe) {
       this.tryBreakWall();
     }
   }
 
   shoot() {
-    // Перевіряємо чи натиснута клавіша руху
     const movementKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
     const isMoving = movementKeys.some(key => this.pressedKeys.has(key));
     
-    // Блокування стрільби у безпечній зоні
     const inSafeZone = this.safeZones.some(sz => 
       sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
     );
@@ -1010,20 +1002,17 @@ class ZombieApocalypseGame {
       return;
     }
     
-    // Спочатку перевіряємо чи є зомбі на тій самій клітинці з гравцем
     const zombieOnPlayer = this.zombies.findIndex(z => 
       z.pos[0] === this.playerPos[0] && z.pos[1] === this.playerPos[1]
     );
     
     if (zombieOnPlayer !== -1) {
-      // Якщо зомбі на клітинці гравця - ближній бій ножем
       if (this.playerHasKnife) {
         this.meleeAttack();
       } else {
         this.showEventNotification('❌ Потрібен ніж для ближнього бою!');
       }
     } else {
-      // Якщо зомбі немає на клітинці гравця - стріляємо (якщо є патрони)
       if (this.playerAmmo > 0) {
         this.rangedAttack();
       } else {
@@ -1032,32 +1021,22 @@ class ZombieApocalypseGame {
     }
   }
 
-  // Функція ближнього бою ножем (не витрачає патрони)
   meleeAttack() {
-    // Блокування атаки у безпечній зоні
     const inSafeZone = this.safeZones.some(sz => 
       sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
     );
-    if (inSafeZone) {
-      this.showEventNotification('❌ У безпечній зоні не можна атакувати!');
-      return;
-    }
-    
-    // Перевіряємо чи є ніж
+    if (inSafeZone) return;
     if (!this.playerHasKnife) {
       this.showEventNotification('❌ Потрібен ніж для ближнього бою!');
       return;
     }
     
-    // Перевіряємо чи є зомбі на тій самій клітинці з гравцем
     const zombieOnPlayer = this.zombies.findIndex(z => 
       z.pos[0] === this.playerPos[0] && z.pos[1] === this.playerPos[1]
     );
     
     if (zombieOnPlayer !== -1) {
-      // Додаємо шанс на промах. Наприклад, 70% шанс влучити.
       if (Math.random() < 0.65) {
-        // Успішний удар
         const zombie = this.zombies[zombieOnPlayer];
         zombie.health--;
         if (this.audioZombieHit) { this.audioZombieHit.currentTime = 0; this.audioZombieHit.play(); }
@@ -1067,7 +1046,6 @@ class ZombieApocalypseGame {
           if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
           this.showEventNotification(`🔪 ${zombie.type.toUpperCase()} зомбі знищено ножем!`);
           
-          // Перевіряємо чи всі зомбі знищені
           if (this.zombies.length === 0) {
             this.spawnExit();
             this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
@@ -1078,7 +1056,6 @@ class ZombieApocalypseGame {
         this.renderMaze();
         this.updateStats();
       } else {
-        // Промах
         this.showEventNotification('🔪 Промах!');
       }
     } else {
@@ -1088,25 +1065,20 @@ class ZombieApocalypseGame {
     if (this.audioKnife) { this.audioKnife.currentTime = 0; this.audioKnife.play(); }
   }
 
-  // Функція стрільби (витрачає патрони)
   rangedAttack() {
-    // Перевіряємо чи є патрони
     if (this.playerAmmo <= 0) {
       this.showEventNotification('❌ Немає патронів для стрільби!');
       return;
     }
     
-    // Витрачаємо патрон
     this.playerAmmo--;
     this.updateStats();
     
-    // Додаємо шанс на промах: 50%
     if (Math.random() >= 0.5) {
       this.showEventNotification('🔫 Промах!');
       return;
     }
     
-    // Знаходимо найближчого зомбі в прямій видимості
     const target = this.findZombieInLineOfSight();
     
     if (target) {
@@ -1119,7 +1091,6 @@ class ZombieApocalypseGame {
         if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
         this.showEventNotification(`🔫 ${zombie.type.toUpperCase()} зомбі знищено!`);
         
-        // Перевіряємо чи всі зомбі знищені
         if (this.zombies.length === 0) {
           this.spawnExit();
           this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
@@ -1136,7 +1107,6 @@ class ZombieApocalypseGame {
     if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); }
   }
 
-  // Функція пошуку зомбі в прямій видимості для стрільби
   findZombieInLineOfSight() {
     const directions = [[-1,0],[1,0],[0,-1],[0,1]];
     let closestTarget = null;
@@ -1154,7 +1124,7 @@ class ZombieApocalypseGame {
             closestTarget = { index: zombieIndex, distance: distance };
             closestDistance = distance;
           }
-          break; // Зупиняємося на першому зомбі в цьому напрямку
+          break;
         }
         r += dr;
         c += dc;
@@ -1169,12 +1139,11 @@ class ZombieApocalypseGame {
     if (this.playerMoveInterval) clearInterval(this.playerMoveInterval);
     this.playerMoveInterval = setInterval(() => {
       if (!this.isGameActive || this.isPaused || Date.now() < this.playerBlockedUntil) return;
-      // Додаємо виклик checkSafeZone завжди
       this.checkSafeZone();
       if (!this.playerDirection) return;
       const newRow = this.playerPos[0] + this.playerDirection[0];
       const newCol = this.playerPos[1] + this.playerDirection[1];
-      if (this.isValidMove(newRow, newCol)) {
+      if (this.isValidMove(newRow, newCol, 'player')) {
         this.playerPos = [newRow, newCol];
         if (this.audioStep) { this.audioStep.currentTime = 0; this.audioStep.play(); }
         this.checkItemPickup();
@@ -1184,67 +1153,93 @@ class ZombieApocalypseGame {
     }, 100);
   }
 
-  isValidMove(row, col) {
-    return row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0;
+  isValidMove(row, col, entityType = 'zombie') {
+      if (!(row >= 0 && row < this.size && col >= 0 && col < this.size && this.maze[row][col] === 0)) {
+          return false;
+      }
+      // Заборона для всіх наступати на міни, встановлені гравцем
+      const playerMine = this.activeMines.find(m => m.pos[0] === row && m.pos[1] === col && m.placedBy === 'player');
+      if (playerMine) return false;
+
+      // Тільки гравцю заборонено наступати на міни зомбі
+      if (entityType === 'player') {
+          const zombieMine = this.activeMines.find(m => m.pos[0] === row && m.pos[1] === col && m.placedBy === 'zombie');
+          if (zombieMine) return false;
+      }
+      return true;
   }
 
   checkItemPickup() {
     let picked = false;
-    // Перевірка підбору патронів
-    if (this.ammoVisible && this.ammoPos && 
-        this.playerPos[0] === this.ammoPos[0] && this.playerPos[1] === this.ammoPos[1]) {
+    // Гравець підбирає предмети
+    if (this.ammoVisible && this.ammoPos && this.playerPos[0] === this.ammoPos[0] && this.playerPos[1] === this.ammoPos[1]) {
       this.playerAmmo += 5;
-      this.hideAmmo();
-      this.updateStats();
-      picked = true;
+      this.hideAmmo(); picked = true;
     }
-    
-    // Перевірка підбору здоров'я
-    if (this.healthVisible && this.healthPos && 
-        this.playerPos[0] === this.healthPos[0] && this.playerPos[1] === this.healthPos[1]) {
+    if (this.healthVisible && this.healthPos && this.playerPos[0] === this.healthPos[0] && this.playerPos[1] === this.healthPos[1]) {
       this.playerHealth = Math.min(100, this.playerHealth + 25);
-      this.hideHealth();
-      this.updateStats();
-      picked = true;
+      this.hideHealth(); picked = true;
     }
-    
-    // Перевірка підбору щита
-    if (this.shieldVisible && this.shieldPos && 
-        this.playerPos[0] === this.shieldPos[0] && this.playerPos[1] === this.shieldPos[1]) {
+    if (this.shieldVisible && this.shieldPos && this.playerPos[0] === this.shieldPos[0] && this.playerPos[1] === this.shieldPos[1]) {
       this.playerShield = Math.min(100, this.playerShield + 50);
-      this.hideShield();
-      this.updateStats();
-      picked = true;
+      this.hideShield(); picked = true;
     }
-    
-    // Перевірка підбору топора
-    if (this.pickaxeVisible && this.pickaxePos && 
-        this.playerPos[0] === this.pickaxePos[0] && this.playerPos[1] === this.pickaxePos[1]) {
+    if (this.pickaxeVisible && this.pickaxePos && this.playerPos[0] === this.pickaxePos[0] && this.playerPos[1] === this.pickaxePos[1]) {
       this.playerHasPickaxe = true;
-      this.hidePickaxe();
-      this.updateStats();
-      picked = true;
+      this.hidePickaxe(); picked = true;
     }
-    
-    // Перевірка підбору ножа
-    if (this.knifeVisible && this.knifePos && 
-        this.playerPos[0] === this.knifePos[0] && this.playerPos[1] === this.knifePos[1]) {
+    if (this.knifeVisible && this.knifePos && this.playerPos[0] === this.knifePos[0] && this.playerPos[1] === this.knifePos[1]) {
       this.playerHasKnife = true;
-      this.hideKnife();
-      this.updateStats();
-      picked = true;
+      this.hideKnife(); picked = true;
     }
-    
-    // Перевірка підбору міни
-    if (this.mineVisible && this.minePos && 
-        this.playerPos[0] === this.minePos[0] && this.playerPos[1] === this.minePos[1]) {
+    if (this.mineVisible && this.minePos && this.playerPos[0] === this.minePos[0] && this.playerPos[1] === this.minePos[1]) {
       this.playerMines += 1;
-      this.hideMine();
-      this.updateStats();
-      picked = true;
+      this.hideMine(); picked = true;
     }
     
-    if (picked && this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
+    if (picked) {
+        if (this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
+        this.updateStats();
+        this.renderMaze();
+    }
+  }
+
+  zombieCheckItemPickup(zombie) {
+      let picked = false;
+      if (this.ammoVisible && this.ammoPos && zombie.pos[0] === this.ammoPos[0] && zombie.pos[1] === this.ammoPos[1]) {
+          zombie.inventory.ammo += 5;
+          this.hideAmmo(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав патрони!');
+      }
+      if (this.healthVisible && this.healthPos && zombie.pos[0] === this.healthPos[0] && zombie.pos[1] === this.healthPos[1]) {
+          zombie.health = Math.min(zombie.maxHealth, zombie.health + 1); // Зомбі відновлює 1 HP
+          this.hideHealth(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав здоров\'я!');
+      }
+      if (this.shieldVisible && this.shieldPos && zombie.pos[0] === this.shieldPos[0] && zombie.pos[1] === this.shieldPos[1]) {
+          zombie.inventory.shield += 50;
+          this.hideShield(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав щит!');
+      }
+      if (this.pickaxeVisible && this.pickaxePos && zombie.pos[0] === this.pickaxePos[0] && zombie.pos[1] === this.pickaxePos[1]) {
+          zombie.inventory.hasPickaxe = true;
+          this.hidePickaxe(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав топор!');
+      }
+      if (this.knifeVisible && this.knifePos && zombie.pos[0] === this.knifePos[0] && zombie.pos[1] === this.knifePos[1]) {
+          zombie.inventory.hasKnife = true;
+          this.hideKnife(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав ніж!');
+      }
+      if (this.mineVisible && this.minePos && zombie.pos[0] === this.minePos[0] && zombie.pos[1] === this.minePos[1]) {
+          zombie.inventory.mines += 1;
+          this.hideMine(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав міну!');
+      }
+      if (picked) {
+          if (this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
+          this.renderMaze();
+      }
   }
 
   checkSafeZone() {
@@ -1259,49 +1254,31 @@ class ZombieApocalypseGame {
     if (inSafeZone) {
       this.playerStatusEl.textContent = '🔋 Зона поповнення ресурсів! Стійте нерухомо!';
       this.playerStatusEl.style.background = 'rgba(46, 204, 113, 0.8)';
-      // Запускаємо бонуси, якщо ще не запущені
       if (!this.safeZoneAmmoInterval) {
         this.safeZoneAmmoInterval = setInterval(() => {
           if (!this.isGameActive || this.isPaused) return;
-          // Перевіряємо, чи гравець досі у безпечній зоні і стоїть нерухомо
-          const stillInSafeZone = this.safeZones.some(sz => 
-            sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
-          );
+          const stillInSafeZone = this.safeZones.some(sz => sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]);
           const isMoving = !!this.playerDirection;
           if (stillInSafeZone && !isMoving) {
-            this.playerAmmo += 1;
-            this.updateStats();
-            this.showEventNotification('🔫 +1 патрон (зона)');
+            this.playerAmmo += 1; this.updateStats(); this.showEventNotification('🔫 +1 патрон (зона)');
           }
         }, 2000);
       }
       if (!this.safeZoneShieldInterval) {
         this.safeZoneShieldInterval = setInterval(() => {
           if (!this.isGameActive || this.isPaused) return;
-          // Перевіряємо, чи гравець досі у безпечній зоні і стоїть нерухомо
-          const stillInSafeZone = this.safeZones.some(sz => 
-            sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
-          );
+          const stillInSafeZone = this.safeZones.some(sz => sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]);
           const isMoving = !!this.playerDirection;
           if (stillInSafeZone && !isMoving) {
-            this.playerShield = Math.min(100, this.playerShield + 10);
-            this.updateStats();
-            this.showEventNotification('🛡️ +10 щита (зона)');
+            this.playerShield = Math.min(100, this.playerShield + 10); this.updateStats(); this.showEventNotification('🛡️ +10 щита (зона)');
           }
         }, 3000);
       }
     } else {
       this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
       this.playerStatusEl.style.background = 'rgba(52, 152, 219, 0.8)';
-      // Зупиняємо бонуси, якщо вийшов із зони
-      if (this.safeZoneAmmoInterval) {
-        clearInterval(this.safeZoneAmmoInterval);
-        this.safeZoneAmmoInterval = null;
-      }
-      if (this.safeZoneShieldInterval) {
-        clearInterval(this.safeZoneShieldInterval);
-        this.safeZoneShieldInterval = null;
-      }
+      if (this.safeZoneAmmoInterval) { clearInterval(this.safeZoneAmmoInterval); this.safeZoneAmmoInterval = null; }
+      if (this.safeZoneShieldInterval) { clearInterval(this.safeZoneShieldInterval); this.safeZoneShieldInterval = null; }
     }
   }
 
@@ -1310,11 +1287,10 @@ class ZombieApocalypseGame {
     
     setTimeout(() => {
       if (!this.isGameActive) return;
-      
       this.zombieMoveInterval = setInterval(() => {
         if (!this.isGameActive || this.isPaused) return;
         this.moveZombies();
-      }, 50); // Часто перевіряємо, чи час рухати когось із зомбі
+      }, 50);
     }, 2000);
   }
 
@@ -1324,102 +1300,162 @@ class ZombieApocalypseGame {
     this.collisionCheckInterval = setInterval(() => {
       if (!this.isGameActive || this.isPaused) return;
       this.checkCollision();
-    }, 50); // Перевіряємо колізію кожні 50мс для більшої точності
+    }, 50);
   }
 
   moveZombies() {
-    const now = Date.now();
-    for (const zombie of this.zombies) {
-      if (!zombie.lastMoveTime) zombie.lastMoveTime = now;
-      if (zombie.stunnedUntil && now < zombie.stunnedUntil) continue;
-      if (now - zombie.lastMoveTime >= zombie.speed) {
-        this.moveZombiesGeneric([zombie], this.maze, this.playerPos);
-        zombie.lastMoveTime = now;
-        // Звук зомбі, якщо поруч з гравцем
-        if (Math.abs(zombie.pos[0] - this.playerPos[0]) + Math.abs(zombie.pos[1] - this.playerPos[1]) <= 2) {
-          if (this.audioZombie) { this.audioZombie.currentTime = 0; this.audioZombie.play(); }
-        }
+  const now = Date.now();
+  for (const zombie of this.zombies) {
+    if (!zombie.lastMoveTime) zombie.lastMoveTime = now;
+    if (zombie.stunnedUntil && now < zombie.stunnedUntil) continue;
+    // --- нова логіка ---
+    // Додаємо перевірку: якщо зомбі на одній клітинці з гравцем — не стріляє!
+    if (
+      this.canSeeTarget(zombie, this.maze, this.playerPos) &&
+      zombie.inventory.ammo > 0 &&
+      !(zombie.pos[0] === this.playerPos[0] && zombie.pos[1] === this.playerPos[1])
+    ) {
+      // Якщо бачить гравця і є патрони — не рухається, а стріляє
+      if (now - zombie.lastShotTime > 142) {
+        zombie.lastShotTime = now;
+        setTimeout(() => this.zombieShoot(zombie), 200);
+      }
+      continue; // Не рухається!
+    }
+    // --- кінець нової логіки ---
+    if (now - zombie.lastMoveTime >= zombie.speed) {
+      this.moveSingleZombie(zombie);
+      zombie.lastMoveTime = now;
+      if (Math.abs(zombie.pos[0] - this.playerPos[0]) + Math.abs(zombie.pos[1] - this.playerPos[1]) <= 2) {
+        if (this.audioZombie) { this.audioZombie.currentTime = 0; this.audioZombie.play(); }
       }
     }
-    // Після руху всіх зомбі — перевіряємо взаємодії
-    this.checkZombieInteractions(this.zombies, this.maze);
-    this.renderMaze();
-    this.updateStats();
-    this.checkMinesExplosion();
-    this.checkPlayerMineExplosion();
+  }
+  this.checkZombieInteractions(this.zombies, this.maze);
+  this.renderMaze();
+  this.updateStats();
+  this.checkMinesExplosion();
+  this.checkPlayerMineExplosion();
+}
+  
+  moveSingleZombie(zombie) {
+      // 1. Логіка використання топора
+      const nextPosOnPath = this.getNextStepOnPath(zombie);
+      if (nextPosOnPath && this.maze[nextPosOnPath[0]][nextPosOnPath[1]] === 1) {
+          if (zombie.inventory.hasPickaxe) {
+              this.maze[nextPosOnPath[0]][nextPosOnPath[1]] = 0;
+              zombie.inventory.hasPickaxe = false;
+              zombie.pos = nextPosOnPath;
+              if (this.audioBreakWall) { this.audioBreakWall.currentTime = 0; this.audioBreakWall.play(); }
+              this.showEventNotification('🧟‍♂️ Зомбі прорубав стіну!');
+              this.zombies.forEach(z => { z.path = []; z.pathIndex = 0; });
+              this.zombieCheckItemPickup(zombie);
+              return;
+          }
+      }
+
+      // 2. Основний рух
+      this.moveZombiesGeneric([zombie], this.maze, this.playerPos);
+
+      // 3. Підбір предметів після руху
+      this.zombieCheckItemPickup(zombie);
+
+      // 4. Встановлення міни
+      if (zombie.inventory.mines > 0 && zombie.state === 'patrolling' && Math.random() < 0.05) {
+          this.tryPlaceZombieMine(zombie);
+      }
+  }
+
+  getNextStepOnPath(zombie) {
+      if (zombie.path && zombie.pathIndex < zombie.path.length) {
+          return zombie.path[zombie.pathIndex];
+      }
+      return null;
+  }
+    
+  zombieShoot(zombie) {
+    if (!this.isGameActive || this.isPaused || zombie.inventory.ammo <= 0) return;
+    
+    zombie.inventory.ammo--;
+    if (this.audioGun) { this.audioGun.currentTime = 0; this.audioGun.play(); }
+
+    // Така ж вірогідність попадання, як у гравця (50% шанс)
+    if (Math.random() >= 0.5) {
+        this.showEventNotification(`🧟‍♂️ Зомбі влучив у вас!`);
+        let damage = 15;
+        if (zombie.inventory && zombie.inventory.hasKnife) {
+          damage = Math.round(damage * 1.5); // +50% урону
+        }
+        if (this.playerShield > 0) {
+            const shieldDamage = Math.min(this.playerShield, damage);
+            this.playerShield -= shieldDamage;
+            const remainingDamage = damage - shieldDamage;
+            this.playerHealth -= remainingDamage;
+        } else {
+            this.playerHealth -= damage;
+        }
+        this.updateStats();
+        if (this.playerHealth <= 0) {
+            this.endGame(false);
+        }
+    } else {
+        this.showEventNotification(`🧟‍♂️ Зомбі промахнувся!`);
+    }
   }
 
   moveZombiesGeneric(zombies, maze, targetPos) {
     for (const zombie of zombies) {
-      // Перевіряємо валідність поточного шляху зомбі
       if (zombie.path && zombie.pathIndex < zombie.path.length) {
         const nextPos = zombie.path[zombie.pathIndex];
-        // Забороняємо рух на стартову точку, якщо старт ще активний
-        if (!this.isValidMove(nextPos[0], nextPos[1]) || (this.isStartActive && nextPos[0] === 1 && nextPos[1] === 1)) {
-          // Шлях більше не валідний, перераховуємо
-          zombie.path = [];
-          zombie.pathIndex = 0;
+        if (!this.isValidMove(nextPos[0], nextPos[1], 'zombie') || (this.isStartActive && nextPos[0] === 1 && nextPos[1] === 1)) {
+          zombie.path = []; zombie.pathIndex = 0;
         }
       }
 
-      // Перевіряємо, бачить ли зомбі ціль
       const prevState = this.zombieLastSeenState.get(zombie) || 'patrolling';
       if (this.canSeeTarget(zombie, maze, targetPos)) {
         zombie.state = 'chasing';
-        if (prevState !== 'chasing') {
-          if (this.audioZombieSee) { this.audioZombieSee.currentTime = 0; this.audioZombieSee.play(); }
-        }
+        if (prevState !== 'chasing') { if (this.audioZombieSee) { this.audioZombieSee.currentTime = 0; this.audioZombieSee.play(); } }
       } else {
         zombie.state = 'patrolling';
       }
       this.zombieLastSeenState.set(zombie, zombie.state);
 
       if (zombie.state === 'chasing') {
-        // Режим полювання: використовуємо A*
         if (!zombie.path || zombie.pathIndex >= zombie.path.length || Math.random() < 0.1) {
-          zombie.path = this.findPathAStarWithStartBlock(maze, zombie.pos, targetPos);
+          zombie.path = this.findPathAStarWithStartBlock(maze, zombie.pos, targetPos, 'zombie');
           zombie.pathIndex = 1;
         }
         if (zombie.path && zombie.pathIndex < zombie.path.length) {
-          // Не дозволяємо зомбі потрапити на старт, якщо старт активний
-          if (this.isStartActive && zombie.path[zombie.pathIndex][0] === 1 && zombie.path[zombie.pathIndex][1] === 1) {
-            // Залишається на місці
-          } else {
+          if (!(this.isStartActive && zombie.path[zombie.pathIndex][0] === 1 && zombie.path[zombie.pathIndex][1] === 1)) {
             zombie.pos = zombie.path[zombie.pathIndex];
           }
           zombie.pathIndex++;
         }
       } else {
-        // Покращене патрулювання: не повертатися назад, змінювати напрямок на перехрестях
         const possibleDirections = [[0, 1], [0, -1], [1, 0], [-1, 0]];
         const prevDirection = zombie.direction;
         const reverseDirection = prevDirection ? [-prevDirection[0], -prevDirection[1]] : null;
-        // Знаходимо всі можливі напрямки (крім зворотного, якщо є інші варіанти)
         let validDirections = possibleDirections.filter(dir => {
           const checkPos = [zombie.pos[0] + dir[0], zombie.pos[1] + dir[1]];
-          // Не йти на старт, якщо старт активний
           if (this.isStartActive && checkPos[0] === 1 && checkPos[1] === 1) return false;
           if (reverseDirection && dir[0] === reverseDirection[0] && dir[1] === reverseDirection[1]) return false;
-          return this.isValidMove(checkPos[0], checkPos[1]);
+          return this.isValidMove(checkPos[0], checkPos[1], 'zombie');
         });
-        // Якщо тільки зворотний шлях можливий (тупик), дозволяємо його
         if (validDirections.length === 0 && reverseDirection) {
           const backPos = [zombie.pos[0] + reverseDirection[0], zombie.pos[1] + reverseDirection[1]];
-          if (this.isValidMove(backPos[0], backPos[1]) && !(this.isStartActive && backPos[0] === 1 && backPos[1] === 1)) {
+          if (this.isValidMove(backPos[0], backPos[1], 'zombie') && !(this.isStartActive && backPos[0] === 1 && backPos[1] === 1)) {
             validDirections = [reverseDirection];
           }
         }
-        // На перехрестях (більше 1 варіанта) іноді змінюємо напрямок випадково
         if (validDirections.length > 1 && Math.random() < 0.3) {
           zombie.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
         } else if (validDirections.length > 0) {
-          // Якщо поточний напрямок ще валідний, продовжуємо, інакше беремо новий
           const nextPos = [zombie.pos[0] + (zombie.direction ? zombie.direction[0] : 0), zombie.pos[1] + (zombie.direction ? zombie.direction[1] : 0)];
-          if (!zombie.direction || !this.isValidMove(nextPos[0], nextPos[1]) || (this.isStartActive && nextPos[0] === 1 && nextPos[1] === 1)) {
+          if (!zombie.direction || !this.isValidMove(nextPos[0], nextPos[1], 'zombie') || (this.isStartActive && nextPos[0] === 1 && nextPos[1] === 1)) {
             zombie.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
           }
         }
-        // Рухаємося в вибраному напрямку
         if (zombie.direction) {
           const nextPos = [zombie.pos[0] + zombie.direction[0], zombie.pos[1] + zombie.direction[1]];
           if (!(this.isStartActive && nextPos[0] === 1 && nextPos[1] === 1)) {
@@ -1428,41 +1464,31 @@ class ZombieApocalypseGame {
         }
       }
     }
-    // Видаляємо тут виклики checkZombieInteractions, renderMaze, updateStats
   }
 
   canSeeTarget(zombie, maze, targetPos) {
-    // Стартова позиція невидима для зомбі
     if (targetPos[0] === 1 && targetPos[1] === 1) return false;
     const [zRow, zCol] = zombie.pos;
     const [tRow, tCol] = targetPos;
     const lineOfSightDistance = 15;
-    // Перевірка по горизонталі
     if (zRow === tRow && Math.abs(zCol - tCol) < lineOfSightDistance) {
       const start = Math.min(zCol, tCol);
       const end = Math.max(zCol, tCol);
       let wallFound = false;
-      for (let i = start + 1; i < end; i++) {
-        if (maze[zRow][i] === 1) { wallFound = true; break; }
-      }
+      for (let i = start + 1; i < end; i++) { if (maze[zRow][i] === 1) { wallFound = true; break; } }
       if (!wallFound) return true;
     }
-    // Перевірка по вертикалі
     if (zCol === tCol && Math.abs(zRow - tRow) < lineOfSightDistance) {
       const start = Math.min(zRow, tRow);
       const end = Math.max(zRow, tRow);
       let wallFound = false;
-      for (let i = start + 1; i < end; i++) {
-        if (maze[i][zCol] === 1) { wallFound = true; break; }
-      }
+      for (let i = start + 1; i < end; i++) { if (maze[i][zCol] === 1) { wallFound = true; break; } }
       if (!wallFound) return true;
     }
     return false;
   }
 
-  // A* з блокуванням старту для зомбі
-  findPathAStarWithStartBlock(maze, start, goal) {
-    // Якщо старт активний, зомбі не можуть йти на (1,1)
+  findPathAStarWithStartBlock(maze, start, goal, entityType = 'zombie') {
     const size = this.size;
     const openSet = [start];
     const cameFrom = {};
@@ -1477,30 +1503,20 @@ class ZombieApocalypseGame {
     while (openSet.length > 0) {
       let currentIdx = 0;
       for (let i = 1; i < openSet.length; i++) {
-        const [r, c] = openSet[i];
-        if (fScore[r][c] < fScore[openSet[currentIdx][0]][openSet[currentIdx][1]]) {
+        if (fScore[openSet[i][0]][openSet[i][1]] < fScore[openSet[currentIdx][0]][openSet[currentIdx][1]]) {
           currentIdx = i;
         }
       }
       const current = openSet.splice(currentIdx, 1)[0];
       if (current[0] === goal[0] && current[1] === goal[1]) {
-        let path = [goal];
-        let currStr = posToStr(goal);
-        while (cameFrom[currStr]) {
-          currStr = cameFrom[currStr];
-          path.push(strToPos(currStr));
-        }
-        path.reverse();
-        return path;
+        let path = [goal]; let currStr = posToStr(goal);
+        while (cameFrom[currStr]) { currStr = cameFrom[currStr]; path.push(strToPos(currStr)); }
+        return path.reverse();
       }
       const directions = [[-1,0],[1,0],[0,-1],[0,1]];
       for (const [dr, dc] of directions) {
         const nr = current[0] + dr, nc = current[1] + dc;
-        if (
-          nr >= 0 && nr < size && nc >= 0 && nc < size &&
-          maze[nr][nc] === 0 &&
-          !(this.isStartActive && nr === 1 && nc === 1)
-        ) {
+        if (this.isValidMove(nr, nc, entityType) && !(this.isStartActive && nr === 1 && nc === 1)) {
           const tentative_gScore = gScore[current[0]][current[1]] + 1;
           if (tentative_gScore < gScore[nr][nc]) {
             cameFrom[posToStr([nr, nc])] = posToStr(current);
@@ -1517,7 +1533,6 @@ class ZombieApocalypseGame {
   }
 
   heuristic(pos, goal) {
-    // Манхеттенська відстань
     return Math.abs(pos[0] - goal[0]) + Math.abs(pos[1] - goal[1]);
   }
 
@@ -1529,76 +1544,30 @@ class ZombieApocalypseGame {
 
     for (let i = 0; i < zombies.length; i++) {
       if (toRemove.has(i)) continue;
-
       for (let j = i + 1; j < zombies.length; j++) {
         if (toRemove.has(j)) continue;
-
-        const z1 = zombies[i];
-        const z2 = zombies[j];
-
+        const z1 = zombies[i]; const z2 = zombies[j];
         const isTouching = Math.abs(z1.pos[0] - z2.pos[0]) + Math.abs(z1.pos[1] - z2.pos[1]) <= 1;
-
-        // Взаємодія відбувається тільки якщо типи РІЗНІ
         if (isTouching && z1.type !== z2.type) {
-          
-          // 50% шанс на народження, 50% на загибель
           if (Math.random() < 0.5) {
-            // --- НАРОДЖЕННЯ ---
             if (zombies.length + newZombies.length < maxZombies) {
-              const zombieType = Math.random() < 0.1 ? 'boss' : 
-                                Math.random() < 0.3 ? 'fast' : 'normal';
-              
-              // Різна кількість здоров'я для різних типів зомбі
-              let health;
-              switch(zombieType) {
-                case 'boss':
-                  health = 5;
-                  break;
-                case 'fast':
-                  health = 3;
-                  break;
-                default:
-                  health = 2;
-                  break;
-              }
-              
-              newZombies.push({
-                pos: this.getRandomEmptyPosition(),
-                type: zombieType,
-                health: health,
-                maxHealth: health,
-                speed: zombieType === 'fast' ? 80 : zombieType === 'boss' ? 220 : 140,
-                state: 'patrolling',
-                direction: [0, 1],
-                path: [],
-                pathIndex: 0,
-                lastMoveTime: Date.now()
-              });
+              this.spawnZombie(); // spawnZombie тепер створює зомбі з інвентарем
             }
           } else {
-            // --- ЗАГИБЕЛЬ ---
             if (zombies.length - toRemove.size > minZombies) {
-              // Видаляємо одного з двох зіткнувшихся випадково
               toRemove.add(Math.random() < 0.5 ? i : j);
             }
           }
-          
-          // Запобігаємо подальшим взаємодіям для цієї пари в поточному тику
-          // і переходимо до наступного головного зомбі (i)
           break; 
         }
       }
     }
 
-    // Застосовуємо всі зміни після ітерації
     const filteredZombies = zombies.filter((_, index) => !toRemove.has(index));
     zombies.length = 0;
     zombies.push(...filteredZombies);
-    zombies.push(...newZombies);
     
-    // Оновлюємо статистику після зміни кількості зомбі
     this.updateStats();
-    // Додаємо: якщо зомбі не залишилось і вихід ще не зʼявився, зʼявляється вихід
     if (this.zombies.length === 0 && !this.exitVisible) {
       this.spawnExit();
       this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
@@ -1606,259 +1575,95 @@ class ZombieApocalypseGame {
   }
 
   startZombieTypeChange() {
-    if (this.zombieTypeChangeInterval) {
-      clearInterval(this.zombieTypeChangeInterval);
-    }
+    if (this.zombieTypeChangeInterval) clearInterval(this.zombieTypeChangeInterval);
     this.zombieTypeChangeInterval = setInterval(() => {
-      if (!this.isGameActive || this.isPaused || this.zombies.length === 0) {
-        return;
-      }
-      // Якщо залишився лише 1 зомбі — не змінюємо тип
-      if (this.zombies.length === 1) {
-        return;
-      }
-      // Змінюємо тип випадкового зомбі
+      if (!this.isGameActive || this.isPaused || this.zombies.length <= 1) return;
       const randomZombieIndex = Math.floor(Math.random() * this.zombies.length);
       const zombieToChange = this.zombies[randomZombieIndex];
-      const newType = Math.random() < 0.1 ? 'boss' : 
-                     Math.random() < 0.3 ? 'fast' : 'normal';
-      // Встановлюємо нове maxHealth відповідно до типу
+      const newType = Math.random() < 0.1 ? 'boss' : Math.random() < 0.3 ? 'fast' : 'normal';
       let newMaxHealth;
       switch(newType) {
-        case 'boss':
-          newMaxHealth = 5;
-          break;
-        case 'fast':
-          newMaxHealth = 3;
-          break;
-        default:
-          newMaxHealth = 2;
-          break;
+        case 'boss': newMaxHealth = 5; break;
+        case 'fast': newMaxHealth = 3; break;
+        default: newMaxHealth = 2; break;
       }
-      // Зберігаємо відсоток здоров'я
       const percent = zombieToChange.health / zombieToChange.maxHealth;
       zombieToChange.type = newType;
       zombieToChange.maxHealth = newMaxHealth;
       zombieToChange.health = Math.max(1, Math.round(percent * newMaxHealth));
       zombieToChange.speed = newType === 'fast' ? 80 : newType === 'boss' ? 220 : 140;
-      this.renderMaze();
-      this.updateStats();
+      this.renderMaze(); this.updateStats();
     }, 10000);
   }
 
   spawnExit() {
-    // Генеруємо вихід в випадковому куті (крім стартової позиції)
-    const corners = [
-      [1, this.size-2],
-      [this.size-2, 1],
-      [this.size-2, this.size-2]
-    ];
+    const corners = [[1, this.size-2], [this.size-2, 1], [this.size-2, this.size-2]];
     this.exitPos = corners[Math.floor(Math.random()*corners.length)];
     this.exitVisible = true;
-    
-    // Оновлюємо статус гравця
     this.playerStatusEl.textContent = '🏆 Знайдіть червоний квадрат!';
-    this.playerStatusEl.style.background = 'rgba(241, 196, 15, 0.8)'; // Жовтий колір
-    
-    this.renderMaze();
-    this.updateStats();
+    this.playerStatusEl.style.background = 'rgba(241, 196, 15, 0.8)';
+    this.renderMaze(); this.updateStats();
   }
 
   checkCollision() {
     for (const zombie of this.zombies) {
       if (zombie.pos[0] === this.playerPos[0] && zombie.pos[1] === this.playerPos[1]) {
-        // Перевіряємо чи гравець в безпечній зоні
-        const inSafeZone = this.safeZones.some(sz => 
-          sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]
-        );
-        
+        const inSafeZone = this.safeZones.some(sz => sz[0] === this.playerPos[0] && sz[1] === this.playerPos[1]);
         if (!inSafeZone) {
           if (Date.now() > this.playerBlockedUntil) {
             this.playerBlockedUntil = Date.now() + 3000;
             this.showEventNotification('🏃‍♂️ Вас знерухомлено на 3 секунди!');
           }
-          
           const currentTime = Date.now();
           if (currentTime - this.lastDamageTime > this.damageCooldown) {
-            this.lastDamageTime = currentTime; // Оновлюємо час останнього пошкодження
+            this.lastDamageTime = currentTime;
             if (this.audioZombieBite) { this.audioZombieBite.currentTime = 0; this.audioZombieBite.play(); }
-            
-            const damage = zombie.type === 'boss' ? 30 : zombie.type === 'fast' ? 20 : 15;
-            
+            let damage = zombie.type === 'boss' ? 30 : zombie.type === 'fast' ? 20 : 15;
+            if (zombie.inventory && zombie.inventory.hasKnife) {
+              damage = Math.round(damage * 1.5); // +50% урону
+            }
             if (this.playerShield > 0) {
               const shieldDamage = Math.min(this.playerShield, damage);
               this.playerShield -= shieldDamage;
-              const remainingDamage = damage - shieldDamage;
-              this.playerHealth -= remainingDamage;
+              this.playerHealth -= (damage - shieldDamage);
             } else {
               this.playerHealth -= damage;
             }
-            
             this.updateStats();
-            
-            this.showEventNotification(`💥 Отримано ${damage} пошкоджень!`);
-            
-            if (this.playerHealth <= 0) {
-              this.endGame(false);
-              return;
-            }
+            this.showEventNotification(`💥 Отримано ${damage} пошкоджень${zombie.inventory && zombie.inventory.hasKnife ? ' (ніж)' : ''}!`);
+            if (this.playerHealth <= 0) { this.endGame(false); return; }
           }
         }
       }
     }
-    
-    // Перевіряємо чи гравець досяг виходу
-    if (this.exitVisible && this.exitPos && 
-        this.playerPos[0] === this.exitPos[0] && this.playerPos[1] === this.exitPos[1]) {
+    if (this.exitVisible && this.exitPos && this.playerPos[0] === this.exitPos[0] && this.playerPos[1] === this.exitPos[1]) {
       this.endGame(true);
     }
   }
 
   startItemSpawning() {
-    // Спавн патронів
     setTimeout(() => this.spawnAmmo(), 3000 + Math.random() * 4000);
-    
-    // Спавн здоров'я
     setTimeout(() => this.spawnHealth(), 5000 + Math.random() * 5000);
-    
-    // Спавн щита
     setTimeout(() => this.spawnShield(), 8000 + Math.random() * 6000);
-    
-    // Спавн топора
     setTimeout(() => this.spawnPickaxe(), 10000 + Math.random() * 8000);
-    
-    // Спавн ножа
     setTimeout(() => this.spawnKnife(), 12000 + Math.random() * 10000);
-    
-    // Спавн міни
     setTimeout(() => this.spawnMine(), 14000 + Math.random() * 10000);
   }
 
-  spawnAmmo() {
-    if (this.ammoVisible) return;
-    
-    const pos = this.getRandomEmptyPosition();
-    this.ammoPos = pos;
-    this.ammoVisible = true;
-    this.renderMaze();
-    
-    this.ammoTimeout = setTimeout(() => {
-      this.hideAmmo();
-    }, 5000);
-  }
-
-  hideAmmo() {
-    this.ammoVisible = false;
-    this.ammoPos = null;
-    this.renderMaze();
-  }
-
-  spawnHealth() {
-    if (this.healthVisible) return;
-    
-    const pos = this.getRandomEmptyPosition();
-    this.healthPos = pos;
-    this.healthVisible = true;
-    this.renderMaze();
-    
-    this.healthTimeout = setTimeout(() => {
-      this.hideHealth();
-    }, 5000);
-  }
-
-  hideHealth() {
-    this.healthVisible = false;
-    this.healthPos = null;
-    this.renderMaze();
-  }
-
-  spawnShield() {
-    if (this.shieldVisible) return;
-    
-    const pos = this.getRandomEmptyPosition();
-    this.shieldPos = pos;
-    this.shieldVisible = true;
-    this.renderMaze();
-    
-    this.shieldTimeout = setTimeout(() => {
-      this.hideShield();
-    }, 5000);
-  }
-
-  hideShield() {
-    this.shieldVisible = false;
-    this.shieldPos = null;
-    this.renderMaze();
-  }
-
-  spawnPickaxe() {
-    if (!this.isGameActive) return;
-    
-    const pos = this.getRandomEmptyPosition();
-    this.pickaxePos = pos;
-    this.pickaxeVisible = true;
-    this.renderMaze();
-    
-    // Зникає через 8-12 секунд
-    const duration = 8000 + Math.random() * 4000;
-    this.pickaxeTimeout = setTimeout(() => {
-      this.hidePickaxe();
-      // Плануємо наступний спавн
-      setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000);
-    }, duration);
-  }
-
-  hidePickaxe() {
-    this.pickaxeVisible = false;
-    this.pickaxePos = null;
-    this.renderMaze();
-    if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout);
-  }
-
-  spawnKnife() {
-    if (!this.isGameActive) return;
-    
-    const pos = this.getRandomEmptyPosition();
-    this.knifePos = pos;
-    this.knifeVisible = true;
-    this.renderMaze();
-    
-    // Зникає через 8-12 секунд
-    const duration = 8000 + Math.random() * 4000;
-    this.knifeTimeout = setTimeout(() => {
-      this.hideKnife();
-      // Плануємо наступний спавн
-      setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000);
-    }, duration);
-  }
-
-  hideKnife() {
-    this.knifeVisible = false;
-    this.knifePos = null;
-    this.renderMaze();
-    if (this.knifeTimeout) clearTimeout(this.knifeTimeout);
-  }
-
-  spawnMine() {
-    if (this.mineVisible) return;
-    const pos = this.getRandomEmptyPosition();
-    this.minePos = pos;
-    this.mineVisible = true;
-    this.renderMaze();
-    this.mineTimeout = setTimeout(() => {
-      this.hideMine();
-    }, 6000);
-  }
-
-  hideMine() {
-    this.mineVisible = false;
-    this.minePos = null;
-    this.renderMaze();
-    if (this.mineTimeout) clearTimeout(this.mineTimeout);
-  }
+  spawnAmmo() { if (!this.ammoVisible) { this.ammoPos = this.getRandomEmptyPosition(); this.ammoVisible = true; this.renderMaze(); this.ammoTimeout = setTimeout(() => this.hideAmmo(), 5000); } }
+  hideAmmo() { this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); }
+  spawnHealth() { if (!this.healthVisible) { this.healthPos = this.getRandomEmptyPosition(); this.healthVisible = true; this.renderMaze(); this.healthTimeout = setTimeout(() => this.hideHealth(), 5000); } }
+  hideHealth() { this.healthVisible = false; this.healthPos = null; this.renderMaze(); }
+  spawnShield() { if (!this.shieldVisible) { this.shieldPos = this.getRandomEmptyPosition(); this.shieldVisible = true; this.renderMaze(); this.shieldTimeout = setTimeout(() => this.hideShield(), 5000); } }
+  hideShield() { this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); }
+  spawnPickaxe() { if (!this.isGameActive) return; this.pickaxePos = this.getRandomEmptyPosition(); this.pickaxeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.pickaxeTimeout = setTimeout(() => { this.hidePickaxe(); setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000); }, duration); }
+  hidePickaxe() { this.pickaxeVisible = false; this.pickaxePos = null; this.renderMaze(); if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout); }
+  spawnKnife() { if (!this.isGameActive) return; this.knifePos = this.getRandomEmptyPosition(); this.knifeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.knifeTimeout = setTimeout(() => { this.hideKnife(); setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000); }, duration); }
+  hideKnife() { this.knifeVisible = false; this.knifePos = null; this.renderMaze(); if (this.knifeTimeout) clearTimeout(this.knifeTimeout); }
+  spawnMine() { if (!this.mineVisible) { this.minePos = this.getRandomEmptyPosition(); this.mineVisible = true; this.renderMaze(); this.mineTimeout = setTimeout(() => this.hideMine(), 6000); } }
+  hideMine() { this.mineVisible = false; this.minePos = null; this.renderMaze(); if (this.mineTimeout) clearTimeout(this.mineTimeout); }
 
   tryBreakWall() {
-    // Можна розбити одну стіну навколо гравця (вгору, вниз, вліво, вправо)
     const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
     for (const [dr,dc] of dirs) {
       const r = this.playerPos[0] + dr;
@@ -1868,15 +1673,8 @@ class ZombieApocalypseGame {
         this.playerHasPickaxe = false;
         if (this.audioBreakWall) { this.audioBreakWall.currentTime = 0; this.audioBreakWall.play(); }
         this.showEventNotification('🧱 Стіну прорублено!');
-        
-        // Очищаємо шляхи всіх зомбі, щоб вони перерахували маршрут
-        for (const zombie of this.zombies) {
-          zombie.path = [];
-          zombie.pathIndex = 0;
-        }
-
+        this.zombies.forEach(zombie => { zombie.path = []; zombie.pathIndex = 0; });
         this.renderMaze();
-        // Після використання топора — з'явиться новий через час
         this.spawnPickaxeWithDelay();
         break;
       }
@@ -1884,57 +1682,30 @@ class ZombieApocalypseGame {
   }
 
   spawnPickaxeWithDelay() {
-    // З'явиться через 3-7 секунд
     const delay = 3000 + Math.random() * 4000;
-    setTimeout(() => {
-      if (this.isGameActive && !this.playerHasPickaxe) {
-        this.spawnPickaxe();
-      }
-    }, delay);
+    setTimeout(() => { if (this.isGameActive && !this.playerHasPickaxe) { this.spawnPickaxe(); } }, delay);
   }
 
   startSafeZoneSpawning() {
-    // Запускаємо цикл появи/зникнення безпечної зони
-    const initialDelay = 3000 + Math.random() * 7000; // 3-10 секунд
-    this.safeZoneTimeout = setTimeout(() => {
-      if (!this.isGameActive || this.isPaused) return;
-      this.safeZoneCycle();
-    }, initialDelay);
+    const initialDelay = 3000 + Math.random() * 7000;
+    this.safeZoneTimeout = setTimeout(() => { if (!this.isGameActive || this.isPaused) return; this.safeZoneCycle(); }, initialDelay);
   }
 
   safeZoneCycle() {
-    // Поява зони
-    this.safeZones = [];
-    const pos = this.getRandomEmptyPosition();
-    this.safeZones.push(pos);
+    this.safeZones = [this.getRandomEmptyPosition()];
     this.renderMaze();
     this.showEventNotification('🛡️ Зʼявилася безпечна зона!');
-    // Зона існує 6-14 секунд, потім зникає
-    const zoneDuration = 6000 + Math.random() * 8000; // 6-14 секунд
+    const zoneDuration = 6000 + Math.random() * 8000;
     this.safeZoneTimeout = setTimeout(() => {
-      // Зникає зона
-      this.safeZones = this.safeZones.filter(sz => 
-        !(sz[0] === pos[0] && sz[1] === pos[1])
-      );
+      const expiredZone = this.safeZones.pop();
       this.renderMaze();
-      // Якщо гравець був у цій зоні — одразу змінити статус і зупинити бонуси
-      if (this.playerPos[0] === pos[0] && this.playerPos[1] === pos[1]) {
+      if (expiredZone && this.playerPos[0] === expiredZone[0] && this.playerPos[1] === expiredZone[1]) {
         this.playerStatusEl.textContent = '🧟‍♂️ Виживає...';
         this.playerStatusEl.style.background = 'rgba(52, 152, 219, 0.8)';
-        if (this.safeZoneAmmoInterval) {
-          clearInterval(this.safeZoneAmmoInterval);
-          this.safeZoneAmmoInterval = null;
-        }
-        if (this.safeZoneShieldInterval) {
-          clearInterval(this.safeZoneShieldInterval);
-          this.safeZoneShieldInterval = null;
-        }
+        if (this.safeZoneAmmoInterval) { clearInterval(this.safeZoneAmmoInterval); this.safeZoneAmmoInterval = null; }
+        if (this.safeZoneShieldInterval) { clearInterval(this.safeZoneShieldInterval); this.safeZoneShieldInterval = null; }
       }
-      // Пауза 10 секунд перед наступною появою зони
-      this.safeZoneTimeout = setTimeout(() => {
-        if (!this.isGameActive || this.isPaused) return;
-        this.safeZoneCycle();
-      }, 10000); // 10 секунд
+      this.safeZoneTimeout = setTimeout(() => { if (!this.isGameActive || this.isPaused) return; this.safeZoneCycle(); }, 10000);
     }, zoneDuration);
   }
 
@@ -1946,9 +1717,6 @@ class ZombieApocalypseGame {
         const minutes = Math.floor(this.survivalTime / 60);
         const seconds = this.survivalTime % 60;
         this.timerEl.textContent = `Час виживання: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        // Прибираємо підвищення рівня та додавання нових зомбі
-        // Тепер зомбі з'являються тільки в результаті контакту різних типів
       }
     }, 1000);
   }
@@ -1960,35 +1728,26 @@ class ZombieApocalypseGame {
     document.getElementById('zombieCount').textContent = this.zombies.length;
     document.getElementById('levelDisplay').textContent = this.playerLevel;
     
-    // Додаємо індикатор топора
-    const pickaxeIndicator = document.getElementById('pickaxeIndicator');
-    if (!pickaxeIndicator) {
+    if (!document.getElementById('pickaxeIndicator')) {
       const statsBar = document.getElementById('statsBar');
       const pickaxeDiv = document.createElement('div');
-      pickaxeDiv.className = 'stat-item';
-      pickaxeDiv.id = 'pickaxeIndicator';
+      pickaxeDiv.className = 'stat-item'; pickaxeDiv.id = 'pickaxeIndicator';
       statsBar.appendChild(pickaxeDiv);
     }
     document.getElementById('pickaxeIndicator').innerHTML = `🪓 Топор: <span style="color:${this.playerHasPickaxe ? 'gold' : '#666'}">${this.playerHasPickaxe ? 'Є' : 'Немає'}</span>`;
     
-    // Додаємо індикатор ножа
-    const knifeIndicator = document.getElementById('knifeIndicator');
-    if (!knifeIndicator) {
+    if (!document.getElementById('knifeIndicator')) {
       const statsBar = document.getElementById('statsBar');
       const knifeDiv = document.createElement('div');
-      knifeDiv.className = 'stat-item';
-      knifeDiv.id = 'knifeIndicator';
+      knifeDiv.className = 'stat-item'; knifeDiv.id = 'knifeIndicator';
       statsBar.appendChild(knifeDiv);
     }
     document.getElementById('knifeIndicator').innerHTML = `🔪 Ніж: <span style="color:${this.playerHasKnife ? '#33cc33' : '#666'}">${this.playerHasKnife ? 'Є' : 'Немає'}</span>`;
     
-    // Добавляем индикатор мин
-    const mineIndicator = document.getElementById('mineIndicator');
-    if (!mineIndicator) {
+    if (!document.getElementById('mineIndicator')) {
       const statsBar = document.getElementById('statsBar');
       const mineDiv = document.createElement('div');
-      mineDiv.className = 'stat-item';
-      mineDiv.id = 'mineIndicator';
+      mineDiv.className = 'stat-item'; mineDiv.id = 'mineIndicator';
       statsBar.appendChild(mineDiv);
     }
     document.getElementById('mineIndicator').innerHTML = `💣 Міни: <span style="color:${this.playerMines > 0 ? '#ff2222' : '#666'}">${this.playerMines}</span>`;
@@ -2000,7 +1759,6 @@ class ZombieApocalypseGame {
       'playing': { text: 'Виживає...', class: 'status-playing' },
       'finished': { text: 'Загинув!', class: 'status-finished ' }
     };
-
     const statusInfo = statusMap[status];
     if (statusInfo) {
       this.playerStatusEl.textContent = statusInfo.text;
@@ -2011,23 +1769,13 @@ class ZombieApocalypseGame {
   togglePause() {
     this.isPaused = !this.isPaused;
     this.pauseBtn.textContent = this.isPaused ? '▶️ Продовжити' : '⏸️ Пауза';
-
-    if (this.isPaused) {
-      this.updateStatus('ready');
-    } else {
-      this.updateStatus('playing');
-      this.startTime += Date.now() - this.pauseTime;
-    }
-
-    if (this.isPaused) {
-      this.pauseTime = Date.now();
-    }
+    if (this.isPaused) { this.updateStatus('ready'); this.pauseTime = Date.now(); } 
+    else { this.updateStatus('playing'); this.startTime += Date.now() - this.pauseTime; }
   }
 
   endGame(survived) {
     this.isGameActive = false;
     this.clearAllIntervals();
-    
     if (survived) {
       this.winnerText.textContent = '🏆 ПЕРЕМОГА!';
       this.winnerMessage.textContent = `Вітаємо! Ви знищили всіх зомбі та знайшли вихід!\nЧас виживання: ${Math.floor(this.survivalTime / 60)}:${(this.survivalTime % 60).toString().padStart(2, '0')}\nЗнищено зомбі: ${this.zombiesKilled}\nДосягнутий рівень: ${this.playerLevel}`;
@@ -2038,48 +1786,33 @@ class ZombieApocalypseGame {
       if (this.audioPlayerDeath) { this.audioPlayerDeath.currentTime = 0; this.audioPlayerDeath.play(); }
       if (this.audioLose) { this.audioLose.currentTime = 0; this.audioLose.play(); }
     }
-    
     this.winnerOverlay.style.display = 'flex';
     this.pauseBtn.disabled = true;
   }
 
   showEventNotification(message) {
     const existingNotification = document.querySelector('.event-notification');
-    if (existingNotification) {
-      existingNotification.remove();
-    }
-
+    if (existingNotification) existingNotification.remove();
     const notification = document.createElement('div');
     notification.className = 'event-notification';
     notification.textContent = message;
     document.body.appendChild(notification);
-
     setTimeout(() => {
       if (notification.parentNode) {
         notification.style.animation = 'fadeOut 0.5s ease-out';
-        setTimeout(() => {
-          if (notification.parentNode) {
-            notification.remove();
-          }
-        }, 500);
+        setTimeout(() => { if (notification.parentNode) notification.remove(); }, 500);
       }
     }, 3000);
   }
 
-  startRandomMazeEvents() {
-    this.scheduleNextRandomEvent();
-  }
+  startRandomMazeEvents() { this.scheduleNextRandomEvent(); }
 
   scheduleNextRandomEvent() {
     if (!this.isGameActive || this.isPaused) return;
-    
-    // Випадковий час до наступної події: 1-120 секунд
     const delay = 1000 + Math.random() * 119000;
-    
     this.eventInterval = setTimeout(() => {
         if (!this.isGameActive || this.isPaused) return;
         this.randomMazeEvent();
-        // Плануємо наступну подію
         this.scheduleNextRandomEvent();
     }, delay);
   }
@@ -2088,103 +1821,74 @@ class ZombieApocalypseGame {
     const isAdd = Math.random() < 0.5;
     const size = this.size;
     const forbiddenSet = new Set();
-
-    // Забороняємо змінювати клітинку гравця, зомбі, предметів, старта/виходу та безпечних зон
     forbiddenSet.add(this.playerPos[0] + ',' + this.playerPos[1]);
     this.zombies.forEach(z => forbiddenSet.add(z.pos[0] + ',' + z.pos[1]));
-    if (this.exitVisible && this.exitPos) {
-        forbiddenSet.add(this.exitPos[0] + ',' + this.exitPos[1]);
-    }
+    if (this.exitVisible && this.exitPos) forbiddenSet.add(this.exitPos[0] + ',' + this.exitPos[1]);
     if (this.ammoVisible && this.ammoPos) forbiddenSet.add(this.ammoPos[0] + ',' + this.ammoPos[1]);
     if (this.healthVisible && this.healthPos) forbiddenSet.add(this.healthPos[0] + ',' + this.healthPos[1]);
     if (this.shieldVisible && this.shieldPos) forbiddenSet.add(this.shieldPos[0] + ',' + this.shieldPos[1]);
     if (this.pickaxeVisible && this.pickaxePos) forbiddenSet.add(this.pickaxePos[0] + ',' + this.pickaxePos[1]);
     if (this.knifeVisible && this.knifePos) forbiddenSet.add(this.knifePos[0] + ',' + this.knifePos[1]);
     this.safeZones.forEach(sz => forbiddenSet.add(sz[0] + ',' + sz[1]));
-    forbiddenSet.add('1,1'); // Start position
+    forbiddenSet.add('1,1');
 
     let wallChanged = false;
-    // Питаємося 100 раз знайти підходящу клітинку
     for (let attempt = 0; attempt < 100; attempt++) {
         const row = Math.floor(Math.random() * (size - 2)) + 1;
         const col = Math.floor(Math.random() * (size - 2)) + 1;
         const key = row + ',' + col;
-
         if (forbiddenSet.has(key)) continue;
-
         if (isAdd && this.maze[row][col] === 0) {
-            this.maze[row][col] = 1;
-            this.showEventNotification('🧱 З\'явилася нова стіна!');
-            wallChanged = true;
-            break;
+            this.maze[row][col] = 1; this.showEventNotification('🧱 З\'явилася нова стіна!'); wallChanged = true; break;
         } else if (!isAdd && this.maze[row][col] === 1) {
-            this.maze[row][col] = 0;
-            this.showEventNotification('🕳️ Стіна зникла!');
-            wallChanged = true;
-            break;
+            this.maze[row][col] = 0; this.showEventNotification('🕳️ Стіна зникла!'); wallChanged = true; break;
         }
     }
-
     if (wallChanged) {
-        // Очищаємо шляхи всіх зомбі, щоб вони перерахували маршрут
-        for (const zombie of this.zombies) {
-            zombie.path = [];
-            zombie.pathIndex = 0;
-        }
+        this.zombies.forEach(zombie => { zombie.path = []; zombie.pathIndex = 0; });
         this.renderMaze();
     }
   }
 
   checkMinesExplosion() {
     for (let i = this.activeMines.length - 1; i >= 0; i--) {
-      const {pos: [mineRow, mineCol]} = this.activeMines[i];
-      const zombieIndex = this.zombies.findIndex(z => z.pos[0] === mineRow && z.pos[1] === mineCol);
-      if (zombieIndex !== -1) {
-        const zombie = this.zombies[zombieIndex];
-        const mineDamage = Math.floor(Math.random() * 5) + 1; // 1-5
-        zombie.health -= mineDamage;
-        zombie.stunnedUntil = Date.now() + 1000;
-        if (zombie.health <= 0) {
-          this.zombies.splice(zombieIndex, 1);
-          this.zombiesKilled++;
-          this.showEventNotification(`💥 Міна знищила зомбі! (${mineDamage} урону)`);
-        } else {
-          this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
+        const mine = this.activeMines[i];
+        // Міни гравця шкодять тільки зомбі
+        if (mine.placedBy === 'player') {
+            const zombieIndex = this.zombies.findIndex(z => z.pos[0] === mine.pos[0] && z.pos[1] === mine.pos[1]);
+            if (zombieIndex !== -1) {
+                const zombie = this.zombies[zombieIndex];
+                const mineDamage = Math.floor(Math.random() * 5) + 1;
+                zombie.health -= mineDamage;
+                zombie.stunnedUntil = Date.now() + 1000;
+                if (zombie.health <= 0) {
+                    this.zombies.splice(zombieIndex, 1);
+                    this.zombiesKilled++;
+                    this.showEventNotification(`💥 Міна знищила зомбі! (${mineDamage} урону)`);
+                } else {
+                    this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
+                }
+                if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
+                this.activeMines.splice(i, 1);
+                this.renderMaze();
+                this.updateStats();
+                if (this.zombies.length === 0 && !this.exitVisible) {
+                    this.spawnExit();
+                    this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+                }
+            }
         }
-        if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
-        this.activeMines.splice(i, 1);
-        this.renderMaze();
-        this.updateStats();
-        // Додаємо: якщо зомбі не залишилось і вихід ще не зʼявився, зʼявляється вихід
-        if (this.zombies.length === 0 && !this.exitVisible) {
-          this.spawnExit();
-          this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
-        }
-      }
     }
   }
-
+  
   tryPlaceMine() {
     if (this.playerMines > 0) {
       const [row, col] = this.playerPos;
-      // Запрещаем ставить мину в безопасной зоне и на старте
       const isInSafeZone = this.safeZones.some(sz => sz[0] === row && sz[1] === col);
       const isStart = row === 1 && col === 1;
       const isZombieOnPlayer = this.zombies.some(z => z.pos[0] === row && z.pos[1] === col);
-      if (
-        this.maze[row][col] === 0 &&
-        !this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col) &&
-        !(this.ammoVisible && this.ammoPos && row === this.ammoPos[0] && col === this.ammoPos[1]) &&
-        !(this.healthVisible && this.healthPos && row === this.healthPos[0] && col === this.healthPos[1]) &&
-        !(this.shieldVisible && this.shieldPos && row === this.shieldPos[0] && col === this.shieldPos[1]) &&
-        !(this.pickaxeVisible && this.pickaxePos && row === this.pickaxePos[0] && col === this.pickaxePos[1]) &&
-        !(this.knifeVisible && this.knifePos && row === this.knifePos[0] && col === this.knifePos[1]) &&
-        !(this.mineVisible && this.minePos && row === this.minePos[0] && col === this.minePos[1]) &&
-        !isInSafeZone &&
-        !isStart &&
-        !isZombieOnPlayer
-      ) {
-        this.activeMines.push({pos: [row, col], placedAt: Date.now()});
+      if (this.maze[row][col] === 0 && !this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col) && !isInSafeZone && !isStart && !isZombieOnPlayer) {
+        this.activeMines.push({pos: [row, col], placedAt: Date.now(), placedBy: 'player'});
         this.playerMines--;
         this.updateStats();
         if (this.audioMinePlace) { this.audioMinePlace.currentTime = 0; this.audioMinePlace.play(); }
@@ -2199,20 +1903,37 @@ class ZombieApocalypseGame {
     }
   }
 
+  tryPlaceZombieMine(zombie) {
+    if (zombie.inventory.mines > 0) {
+        const [row, col] = zombie.pos;
+        const canPlace = this.maze[row][col] === 0 &&
+            !this.activeMines.some(m => m.pos[0] === row && m.pos[1] === col) &&
+            !(this.playerPos[0] === row && this.playerPos[1] === col) &&
+            !this.safeZones.some(sz => sz[0] === row && sz[1] === col);
+
+        if (canPlace) {
+            this.activeMines.push({ pos: [row, col], placedAt: Date.now(), placedBy: 'zombie' });
+            zombie.inventory.mines--;
+            this.showEventNotification('💣 Зомбі встановив міну!');
+            if (this.audioMinePlace) { this.audioMinePlace.currentTime = 0; this.audioMinePlace.play(); }
+            this.renderMaze();
+        }
+    }
+  }
+
   checkPlayerMineExplosion() {
     for (let i = this.activeMines.length - 1; i >= 0; i--) {
-      const {pos: [mineRow, mineCol], placedAt} = this.activeMines[i];
-      if (this.playerPos[0] === mineRow && this.playerPos[1] === mineCol) {
-        // Не подрываемся, если с момента установки прошло меньше 1 секунды
-        if (Date.now() - placedAt < 500) continue;
+      const mine = this.activeMines[i];
+      if (this.playerPos[0] === mine.pos[0] && this.playerPos[1] === mine.pos[1]) {
+        // Гравець підривається на будь-якій міні, якщо пройшло більше 0.5 сек з моменту встановлення
+        if (Date.now() - mine.placedAt < 500) continue;
+        
         this.activeMines.splice(i, 1);
-        // Было: const damage = 40;
-        const damage = Math.floor(Math.random() * 200) + 1; // 1-200 урона
+        const damage = mine.placedBy === 'zombie' ? 50 : Math.floor(Math.random() * 200) + 1; // Міни зомбі менш потужні
         if (this.playerShield > 0) {
           const shieldDamage = Math.min(this.playerShield, damage);
           this.playerShield -= shieldDamage;
-          const remainingDamage = damage - shieldDamage;
-          this.playerHealth -= remainingDamage;
+          this.playerHealth -= (damage - shieldDamage);
         } else {
           this.playerHealth -= damage;
         }
@@ -2238,21 +1959,19 @@ window.addEventListener('DOMContentLoaded', () => {
 <nav style="margin-bottom: 18px;">
   <a href="index.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">Головна</a>
   <a href="global.html" style="color:#fff; font-weight:bold; margin-right:18px; text-decoration:none;">GLOBAL</a>
-  <a href="test-mode-experimental.html" style="color:#fff; font-weight:bold; text-decoration:none;">test-mod experimental</a>
-  <a href="npc-ai.html" style="color:#fff; font-weight:bold; text-decoration:none;">npc-ai</a>
+  <a href="test-mode.html" style="color:#fff; font-weight:bold; text-decoration:none;">test-mod</a>
   <a href="standings.html" style="color:#fff; font-weight:bold; text-decoration:none;">Турнірна таблиця</a>
 </nav>
 
 <div class="instructions">
   <h3>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h3>
   <p><strong>🎯 Ціль:</strong> Знищити всіх зомбі, щоб з'явився червоний квадрат (вихід), потім дістатися до нього!</p>
-  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для атаки (тільки коли стоїте), E для топора, <b>X</b> для встановлення міни</p>
+  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для атаки (тільки коли стоїте), E для топора, X для встановлення міни</p>
   <p><strong>📋 Правила:</strong> Зелений квадрат - старт. Зомбі рухаються за допомогою A* алгоритму. Збирайте патрони, здоров'я, щити, топори та ножі. Безпечні зони тимчасово захищають від зомбі!</p>
-  <p><strong>🧟‍♂️ Зомбі:</strong> З'являються ТІЛЬКИ при контакті різних типів. Типи змінюються кожні 10 секунд.</p>
+  <p><strong>🧟‍♂️ Зомбі:</strong> З'являються ТІЛЬКИ при контакті різних типів. Типи змінюються кожні 10 секунд. <strong>УВАГА:</strong> Зомбі тепер можуть підбирати предмети, стріляти, ставити міни та руйнувати стіни!</p>
   <p><strong>💪 Здоров'я зомбі:</strong> Звичайний (2 HP), Швидкий (3 HP), Бос (5 HP)</p>
   <p><strong>🪓 Топор:</strong> Дозволяє прорубувати стіни для створення нових шляхів!</p>
   <p><strong>🔪 Ніж:</strong> Потрібен для ближнього бою! Без ножа неможливо атакувати зомбі на тій самій клітинці.</p>
-  <p><strong>💣 Міни:</strong> Збирайте міни на полі. Щоб встановити міну — натисніть <b>X</b> (на порожній клітинці). Міна вибухає, якщо на неї наступає зомбі або гравець. Міна завдає шкоди зомбі або гравцю, може знищити зомбі або сильно поранити гравця!</p>
   <p><strong>🔫 Бойова система:</strong> Ближній бій ножем (не витрачає патрони) або стрільба (витрачає патрони). Без ножа - неможливо атакувати в ближньому бою!</p>
   <p><strong>🏆 Перемога:</strong> Спочатку знищіть ВСІХ зомбі → з'явиться червоний квадрат у випадковому куті → дістаньтеся до нього!</p>
   <p><strong>🎮 Рівні складності:</strong> Легкий, Середній, Важкий, Кошмар</p>
