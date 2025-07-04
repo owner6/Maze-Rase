@@ -1695,6 +1695,7 @@ class ZombieApocalypseGame {
     console.log('[DIAG] hideAmmo called, ammoPos:', this.ammoPos);
     this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); 
     if (this.ammoTimeout) clearTimeout(this.ammoTimeout); 
+    setTimeout(() => this.spawnAmmo(), 3000 + Math.random() * 4000);
   }
   spawnHealth() { 
     console.log('[DIAG] spawnHealth called, healthVisible:', this.healthVisible);
@@ -1710,6 +1711,7 @@ class ZombieApocalypseGame {
     console.log('[DIAG] hideHealth called, healthPos:', this.healthPos);
     this.healthVisible = false; this.healthPos = null; this.renderMaze(); 
     if (this.healthTimeout) clearTimeout(this.healthTimeout); 
+    setTimeout(() => this.spawnHealth(), 5000 + Math.random() * 5000);
   }
   spawnShield() { 
     console.log('[DIAG] spawnShield called, shieldVisible:', this.shieldVisible);
@@ -1725,13 +1727,14 @@ class ZombieApocalypseGame {
     console.log('[DIAG] hideShield called, shieldPos:', this.shieldPos);
     this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); 
     if (this.shieldTimeout) clearTimeout(this.shieldTimeout); 
+    setTimeout(() => this.spawnShield(), 8000 + Math.random() * 6000);
   }
   spawnPickaxe() { if (!this.isGameActive) return; this.pickaxePos = this.getRandomEmptyPosition(); this.pickaxeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.pickaxeTimeout = setTimeout(() => { this.hidePickaxe(); setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000); }, duration); }
   hidePickaxe() { this.pickaxeVisible = false; this.pickaxePos = null; this.renderMaze(); if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout); }
   spawnKnife() { if (!this.isGameActive) return; this.knifePos = this.getRandomEmptyPosition(); this.knifeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.knifeTimeout = setTimeout(() => { this.hideKnife(); setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000); }, duration); }
   hideKnife() { this.knifeVisible = false; this.knifePos = null; this.renderMaze(); if (this.knifeTimeout) clearTimeout(this.knifeTimeout); }
   spawnMine() { if (!this.mineVisible) { this.minePos = this.getRandomEmptyPosition(); this.mineVisible = true; this.renderMaze(); this.mineTimeout = setTimeout(() => this.hideMine(), 6000); } }
-  hideMine() { this.mineVisible = false; this.minePos = null; this.renderMaze(); if (this.mineTimeout) clearTimeout(this.mineTimeout); }
+  hideMine() { this.mineVisible = false; this.minePos = null; this.renderMaze(); if (this.mineTimeout) clearTimeout(this.mineTimeout); setTimeout(() => this.spawnMine(), 14000 + Math.random() * 10000); }
 
   tryBreakWall() {
     const dirs = [[-1,0],[1,0],[0,-1],[0,1]];

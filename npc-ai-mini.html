@@ -72,11 +72,11 @@
       align-items: center;
       background: rgba(255,255,255,0.05);
       border-radius: 20px;
-      padding: 20px;
+      padding: 10px;
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
       border: 1px solid rgba(255,255,255,0.1);
-      max-width: 1200px;
+      max-width: 1400px;
       width: 100%;
     }
 
@@ -84,20 +84,20 @@
       margin-bottom: 15px;
       text-align: center;
       display: flex;
-      gap: 10px;
+      gap: 3px;
       align-items: center;
     }
 
     .player-name {
-      font-size: 1.5em;
+      font-size: 1em;
       font-weight: bold;
       margin-bottom: 5px;
       color: #3498db;
     }
 
     .player-status {
-      font-size: 1.1em;
-      padding: 5px 15px;
+      font-size: 1em;
+      padding: 5px 10px;
       border-radius: 15px;
       display: inline-block;
     }
@@ -121,8 +121,8 @@
     }
 
     .cell {
-      width: 15px;
-      height: 15px;
+      width: 24px;
+      height: 24px;
       border: 0.5px solid rgba(52, 73, 94, 0.5);
     }
 
@@ -402,6 +402,15 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.4);
       text-shadow: 0 1px 4px #0008;
     }
+
+    .mine-detector-cell {
+      background: #b0e0e6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #4682b4;
+      z-index: 2;
+    }
   </style>
 </head>
 <body>
@@ -422,6 +431,7 @@
 <audio id="audioZombieBite" src="sounds/zombie-bite.wav"></audio>
 <audio id="audioBreakWall" src="sounds/break-wall.wav"></audio>
 <audio id="audioPlayerDeath" src="sounds/player-death.mp3"></audio>
+<audio id="audioMineDefuse" src="sounds/pickup-of.wav"></audio>
 
 <div class="header">
   <h1>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h1>
@@ -624,9 +634,14 @@ class ZombieApocalypseGame {
     this.audioZombieBite = document.getElementById('audioZombieBite');
     this.audioBreakWall = document.getElementById('audioBreakWall');
     this.audioPlayerDeath = document.getElementById('audioPlayerDeath');
+    this.audioMineDefuse = document.getElementById('audioMineDefuse');
     this.wasInSafeZone = false;
     
     this.zombieLastSeenState = new Map(); // Для контролю звуку появи у полі зору
+    this.mineDetectorPos = null;
+    this.mineDetectorVisible = false;
+    this.playerMineDetectorUses = 0;
+    this.mineDetectorTimeout = null;
   }
 
   initializeElements() {
@@ -678,6 +693,10 @@ class ZombieApocalypseGame {
       // Установка мины по X
       if (e.code === 'KeyX') {
         this.tryPlaceMine();
+      }
+      // --- Додаємо розмінування міни по R ---
+      if (e.code === 'KeyR') {
+        this.tryDefuseMine();
       }
     });
     
@@ -848,6 +867,7 @@ class ZombieApocalypseGame {
 
   spawnZombie() {
     const pos = this.getRandomEmptyPosition();
+    if (!pos) return; // Не спавнити, якщо немає місця
     const zombieType = Math.random() < 0.1 ? 'boss' : 
                       Math.random() < 0.3 ? 'fast' : 'normal';
     
@@ -878,16 +898,19 @@ class ZombieApocalypseGame {
         level: 1,
         hasPickaxe: false,
         hasKnife: false,
-        mines: 0
+        mines: 0,
+        mineDetectorUses: 0
       }
     });
   }
 
   getRandomEmptyPosition() {
-    let row, col;
+    let row, col, attempts = 0;
     do {
       row = Math.floor(Math.random() * (this.size - 2)) + 1;
       col = Math.floor(Math.random() * (this.size - 2)) + 1;
+      attempts++;
+      if (attempts > 1000) return null; // Не знайдено вільного місця
     } while (
       this.maze[row][col] === 1 ||
       (row === this.playerPos[0] && col === this.playerPos[1]) ||
@@ -981,6 +1004,11 @@ class ZombieApocalypseGame {
             } else { // Zombie mine
                 cell.classList.add('zombie-mine-cell');
             }
+        }
+        
+        if (this.mineDetectorVisible && this.mineDetectorPos && row === this.mineDetectorPos[0] && col === this.mineDetectorPos[1]) {
+          cell.classList.add('mine-detector-cell');
+          cell.innerHTML = '<span style="font-size:13px;">🧰</span>';
         }
         
         this.mazeEl.appendChild(cell);
@@ -1220,7 +1248,12 @@ class ZombieApocalypseGame {
       this.playerMines += 1;
       this.hideMine(); picked = true;
     }
-    
+    // --- Додаємо підбір мінного детектора гравцем ---
+    if (this.mineDetectorVisible && this.mineDetectorPos && this.playerPos[0] === this.mineDetectorPos[0] && this.playerPos[1] === this.mineDetectorPos[1]) {
+      this.playerMineDetectorUses = 3;
+      this.hideMineDetector(); picked = true;
+      this.showEventNotification('🧰 Ви підібрали детектор мін!');
+    }
     if (picked) {
         if (this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
         this.updateStats();
@@ -1259,6 +1292,11 @@ class ZombieApocalypseGame {
           zombie.inventory.mines += 1;
           this.hideMine(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав міну!');
+      }
+      if (this.mineDetectorVisible && this.mineDetectorPos && zombie.pos[0] === this.mineDetectorPos[0] && zombie.pos[1] === this.mineDetectorPos[1]) {
+          zombie.inventory.mineDetectorUses = 3;
+          this.hideMineDetector(); picked = true;
+          this.showEventNotification('🧟‍♂️ Зомбі підібрав детектор мін!');
       }
       if (picked) {
           if (this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
@@ -1387,6 +1425,18 @@ class ZombieApocalypseGame {
       // 4. Встановлення міни
       if (zombie.inventory.mines > 0 && zombie.state === 'patrolling' && Math.random() < 0.05) {
           this.tryPlaceZombieMine(zombie);
+      }
+
+      // 5. Автоматичне розмінування мін гравця
+      if (zombie.inventory.mineDetectorUses > 0) {
+        const mineIdx = this.activeMines.findIndex(m => m.pos[0] === zombie.pos[0] && m.pos[1] === zombie.pos[1] && m.placedBy === 'player');
+        if (mineIdx !== -1) {
+          this.activeMines.splice(mineIdx, 1);
+          zombie.inventory.mineDetectorUses--;
+          this.showEventNotification('🧟‍♂️ Зомбі розмінував міну гравця!');
+          this.renderMaze();
+          if (this.audioMineDefuse) { this.audioMineDefuse.currentTime = 0; this.audioMineDefuse.play(); }
+        }
       }
   }
 
@@ -1562,40 +1612,52 @@ class ZombieApocalypseGame {
   }
 
   checkZombieInteractions(zombies, maze) {
+    const prevZombieCount = this._prevZombieCount ?? zombies.length;
     const toRemove = new Set();
-    const newZombies = [];
-    const minZombies = 0;
     const maxZombies = 418;
 
     for (let i = 0; i < zombies.length; i++) {
-      if (toRemove.has(i)) continue;
-      for (let j = i + 1; j < zombies.length; j++) {
-        if (toRemove.has(j)) continue;
-        const z1 = zombies[i]; const z2 = zombies[j];
-        const isTouching = Math.abs(z1.pos[0] - z2.pos[0]) + Math.abs(z1.pos[1] - z2.pos[1]) <= 1;
-        if (isTouching && z1.type !== z2.type) {
-          if (Math.random() < 0.5) {
-            if (zombies.length + newZombies.length < maxZombies) {
-              this.spawnZombie(); // spawnZombie тепер створює зомбі з інвентарем
+        if (toRemove.has(i)) continue;
+        for (let j = i + 1; j < zombies.length; j++) {
+            if (toRemove.has(j)) continue;
+
+            const z1 = zombies[i];
+            const z2 = zombies[j];
+
+            if (z1.pos[0] === z2.pos[0] && z1.pos[1] === z2.pos[1] && z1.type !== z2.type) {
+                if (Math.random() < 0.5) { // 50% на 50% - або з'являється новий зомбі, або видаляється один
+                    if (zombies.length < maxZombies) {
+                        this.spawnZombie();
+                        this.showEventNotification('☣️ Два зомбі зʼєднались та створили нового!');
+                    }
+                } else { // 50% ймовірність видалення одного з зомбі
+                    const toKillIndex = Math.random() < 0.5 ? i : j;
+                    toRemove.add(toKillIndex);
+                    this.showEventNotification('💥 Один із зомбі загинув від контакту!');
+                }
+                // Break inner loop to prevent multiple interactions for z1 in one cycle
+                break;
             }
-          } else {
-            if (zombies.length - toRemove.size > minZombies) {
-              toRemove.add(Math.random() < 0.5 ? i : j);
-            }
-          }
-          break; 
         }
-      }
     }
 
-    const filteredZombies = zombies.filter((_, index) => !toRemove.has(index));
-    zombies.length = 0;
-    zombies.push(...filteredZombies);
+    if (toRemove.size > 0) {
+        const filteredZombies = zombies.filter((_, index) => !toRemove.has(index));
+        zombies.length = 0;
+        zombies.push(...filteredZombies);
+    }
     
+    if (prevZombieCount < 3 && zombies.length >= 3) {
+        this.startItemSpawning();
+        this.startSafeZoneSpawning();
+        this.showEventNotification('⚠️ Збільшення популяції зомбі! Предмети та зони знову зʼявляються!');
+    }
+    this._prevZombieCount = zombies.length;
+
     this.updateStats();
     if (this.zombies.length === 0 && !this.exitVisible) {
-      this.spawnExit();
-      this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
+        this.spawnExit();
+        this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
     }
   }
 
@@ -1667,26 +1729,49 @@ class ZombieApocalypseGame {
   }
 
   startItemSpawning() {
-    setTimeout(() => this.spawnAmmo(), 3000 + Math.random() * 4000);
-    setTimeout(() => this.spawnHealth(), 5000 + Math.random() * 5000);
-    setTimeout(() => this.spawnShield(), 8000 + Math.random() * 6000);
+    setTimeout(() => this.spawnAmmo(), 30000 + Math.random() * 15000);
+    setTimeout(() => this.spawnHealth(), 40000 + Math.random() * 20000);
+    setTimeout(() => this.spawnShield(), 60000 + Math.random() * 30000);
     setTimeout(() => this.spawnPickaxe(), 10000 + Math.random() * 8000);
     setTimeout(() => this.spawnKnife(), 12000 + Math.random() * 10000);
-    setTimeout(() => this.spawnMine(), 14000 + Math.random() * 10000);
+    setTimeout(() => this.spawnMine(), 120000 + Math.random() * 60000);
+    setTimeout(() => this.spawnMineDetector(), 45000 + Math.random() * 15000);
   }
 
-  spawnAmmo() { if (!this.ammoVisible) { this.ammoPos = this.getRandomEmptyPosition(); this.ammoVisible = true; this.renderMaze(); this.ammoTimeout = setTimeout(() => this.hideAmmo(), 5000); } }
-  hideAmmo() { this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); }
-  spawnHealth() { if (!this.healthVisible) { this.healthPos = this.getRandomEmptyPosition(); this.healthVisible = true; this.renderMaze(); this.healthTimeout = setTimeout(() => this.hideHealth(), 5000); } }
-  hideHealth() { this.healthVisible = false; this.healthPos = null; this.renderMaze(); }
-  spawnShield() { if (!this.shieldVisible) { this.shieldPos = this.getRandomEmptyPosition(); this.shieldVisible = true; this.renderMaze(); this.shieldTimeout = setTimeout(() => this.hideShield(), 5000); } }
-  hideShield() { this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); }
-  spawnPickaxe() { if (!this.isGameActive) return; this.pickaxePos = this.getRandomEmptyPosition(); this.pickaxeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.pickaxeTimeout = setTimeout(() => { this.hidePickaxe(); setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000); }, duration); }
-  hidePickaxe() { this.pickaxeVisible = false; this.pickaxePos = null; this.renderMaze(); if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout); }
-  spawnKnife() { if (!this.isGameActive) return; this.knifePos = this.getRandomEmptyPosition(); this.knifeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.knifeTimeout = setTimeout(() => { this.hideKnife(); setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000); }, duration); }
-  hideKnife() { this.knifeVisible = false; this.knifePos = null; this.renderMaze(); if (this.knifeTimeout) clearTimeout(this.knifeTimeout); }
-  spawnMine() { if (!this.mineVisible) { this.minePos = this.getRandomEmptyPosition(); this.mineVisible = true; this.renderMaze(); this.mineTimeout = setTimeout(() => this.hideMine(), 6000); } }
-  hideMine() { this.mineVisible = false; this.minePos = null; this.renderMaze(); if (this.mineTimeout) clearTimeout(this.mineTimeout); }
+  spawnAmmo() { if (this.zombies.length < 3) return; if (!this.ammoVisible) { this.ammoPos = this.getRandomEmptyPosition(); if (this.ammoPos) { this.ammoVisible = true; this.renderMaze(); this.ammoTimeout = setTimeout(() => this.hideAmmo(), 5000); } } }
+  hideAmmo() { this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); setTimeout(() => this.spawnAmmo(), 30000 + Math.random() * 15000); }
+  spawnHealth() { if (this.zombies.length < 3) return; if (!this.healthVisible) { this.healthPos = this.getRandomEmptyPosition(); if (this.healthPos) { this.healthVisible = true; this.renderMaze(); this.healthTimeout = setTimeout(() => this.hideHealth(), 5000); } } }
+  hideHealth() { this.healthVisible = false; this.healthPos = null; this.renderMaze(); setTimeout(() => this.spawnHealth(), 40000 + Math.random() * 20000); }
+  spawnShield() { if (this.zombies.length < 3) return; if (!this.shieldVisible) { this.shieldPos = this.getRandomEmptyPosition(); if (this.shieldPos) { this.shieldVisible = true; this.renderMaze(); this.shieldTimeout = setTimeout(() => this.hideShield(), 5000); } } }
+  hideShield() { this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); setTimeout(() => this.spawnShield(), 60000 + Math.random() * 30000); }
+  spawnPickaxe() { if (!this.isGameActive) return; this.pickaxePos = this.getRandomEmptyPosition(); if (!this.pickaxePos) { return; } this.pickaxeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.pickaxeTimeout = setTimeout(() => { this.hidePickaxe(); }, duration); }
+  hidePickaxe() {
+  this.pickaxeVisible = false;
+  this.pickaxePos = null;
+  this.renderMaze();
+  if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout);
+  setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000);
+}
+  spawnKnife() { if (!this.isGameActive) return; this.knifePos = this.getRandomEmptyPosition(); if (!this.knifePos) { return; } this.knifeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.knifeTimeout = setTimeout(() => { this.hideKnife(); }, duration); }
+  hideKnife() { this.knifeVisible = false; this.knifePos = null; this.renderMaze(); if (this.knifeTimeout) clearTimeout(this.knifeTimeout); setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000); }
+  spawnMine() { if (!this.mineVisible) { this.minePos = this.getRandomEmptyPosition(); if (this.minePos) { this.mineVisible = true; this.renderMaze(); this.mineTimeout = setTimeout(() => this.hideMine(), 6000); } } }
+  hideMine() { this.mineVisible = false; this.minePos = null; this.renderMaze(); if (this.mineTimeout) clearTimeout(this.mineTimeout); setTimeout(() => this.spawnMine(), 120000 + Math.random() * 60000); }
+  spawnMineDetector() {
+    if (!this.isGameActive) return;
+    this.mineDetectorPos = this.getRandomEmptyPosition();
+    if (!this.mineDetectorPos) return;
+    this.mineDetectorVisible = true;
+    this.renderMaze();
+    const duration = 8000 + Math.random() * 4000;
+    this.mineDetectorTimeout = setTimeout(() => { this.hideMineDetector(); }, duration);
+  }
+  hideMineDetector() {
+    this.mineDetectorVisible = false;
+    this.mineDetectorPos = null;
+    this.renderMaze();
+    if (this.mineDetectorTimeout) clearTimeout(this.mineDetectorTimeout);
+    setTimeout(() => this.spawnMineDetector(), 45000 + Math.random() * 15000);
+  }
 
   tryBreakWall() {
     const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
@@ -1700,24 +1785,31 @@ class ZombieApocalypseGame {
         this.showEventNotification('🧱 Стіну прорублено!');
         this.zombies.forEach(zombie => { zombie.path = []; zombie.pathIndex = 0; });
         this.renderMaze();
-        this.spawnPickaxeWithDelay();
+        // this.spawnPickaxeWithDelay(); // ВИДАЛЕНО
         break;
       }
     }
   }
 
-  spawnPickaxeWithDelay() {
-    const delay = 3000 + Math.random() * 4000;
-    setTimeout(() => { if (this.isGameActive && !this.playerHasPickaxe) { this.spawnPickaxe(); } }, delay);
-  }
+  // Видалити/закоментувати spawnPickaxeWithDelay якщо не використовується більше
+  // ... existing code ...
+  // Для ножа: нічого не викликати після підбору, спавн лише через hideKnife
+  // ... existing code ...
 
   startSafeZoneSpawning() {
+    if (this.zombies.length < 3) return;
     const initialDelay = 3000 + Math.random() * 7000;
     this.safeZoneTimeout = setTimeout(() => { if (!this.isGameActive || this.isPaused) return; this.safeZoneCycle(); }, initialDelay);
   }
 
   safeZoneCycle() {
-    this.safeZones = [this.getRandomEmptyPosition()];
+    if (this.zombies.length < 3) return;
+    const pos = this.getRandomEmptyPosition();
+    if (!pos) { // No empty position found
+      this.safeZoneTimeout = setTimeout(() => { if (!this.isGameActive || this.isPaused) return; this.safeZoneCycle(); }, 10000);
+      return;
+    }
+    this.safeZones = [pos];
     this.renderMaze();
     this.showEventNotification('🛡️ Зʼявилася безпечна зона!');
     const zoneDuration = 6000 + Math.random() * 8000;
@@ -1776,6 +1868,14 @@ class ZombieApocalypseGame {
       statsBar.appendChild(mineDiv);
     }
     document.getElementById('mineIndicator').innerHTML = `💣 Міни: <span style="color:${this.playerMines > 0 ? '#ff2222' : '#666'}">${this.playerMines}</span>`;
+    
+    if (!document.getElementById('mineDetectorIndicator')) {
+      const statsBar = document.getElementById('statsBar');
+      const mineDetectorDiv = document.createElement('div');
+      mineDetectorDiv.className = 'stat-item'; mineDetectorDiv.id = 'mineDetectorIndicator';
+      statsBar.appendChild(mineDetectorDiv);
+    }
+    document.getElementById('mineDetectorIndicator').innerHTML = `🧰 Детектор мін: <span style="color:${this.playerMineDetectorUses > 0 ? '#33cc33' : '#666'}">${this.playerMineDetectorUses > 0 ? this.playerMineDetectorUses : 'Немає'}</span>`;
   }
 
   updateStatus(status) {
@@ -1973,6 +2073,34 @@ class ZombieApocalypseGame {
       }
     }
   }
+
+  tryDefuseMine() {
+    if (this.playerMineDetectorUses <= 0) {
+      this.showEventNotification('❌ У вас немає мінного детектора!');
+      return;
+    }
+    // Можна розмінувати міну зомбі на сусідній клітинці
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    let defused = false;
+    for (const [dr,dc] of dirs) {
+      const r = this.playerPos[0] + dr;
+      const c = this.playerPos[1] + dc;
+      const mineIdx = this.activeMines.findIndex(m => m.pos[0] === r && m.pos[1] === c && m.placedBy === 'zombie');
+      if (mineIdx !== -1) {
+        this.activeMines.splice(mineIdx, 1);
+        this.playerMineDetectorUses--;
+        this.showEventNotification('🧰 Ви розмінували міну зомбі!');
+        this.renderMaze();
+        this.updateStats();
+        defused = true;
+        break;
+      }
+    }
+    if (!defused) {
+      this.showEventNotification('❌ Поруч немає мін зомбі для розмінування!');
+    }
+    if (this.audioMineDefuse) { this.audioMineDefuse.currentTime = 0; this.audioMineDefuse.play(); }
+  }
 }
 
 // Запуск гри
@@ -1981,7 +2109,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<!-- Меню з посиланням на турнірну таблицю -->
 <nav class="menu-nav">
   <a href="index.html" class="menu-btn">Головна</a>
   <a href="global.html" class="menu-btn">GLOBAL</a>
@@ -1995,7 +2122,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <div class="instructions">
   <h3>🧟‍♂️ Зомбі-Апокаліпсис: Лабіринт Виживання</h3>
   <p><strong>🎯 Ціль:</strong> Знищити всіх зомбі, щоб з'явився червоний квадрат (вихід), потім дістатися до нього!</p>
-  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для атаки (тільки коли стоїте), E для топора, X для встановлення міни</p>
+  <p><strong>🎮 Керування:</strong> Стрілки ←↑↓→ або WASD для руху, Пробіл для атаки (тільки коли стоїте), E для топора, X для встановлення міни, R для розмінування міни</p>
   <p><strong>📋 Правила:</strong> Зелений квадрат - старт. Зомбі рухаються за допомогою A* алгоритму. Збирайте патрони, здоров'я, щити, топори та ножі. Безпечні зони тимчасово захищають від зомбі!</p>
   <p><strong>🧟‍♂️ Зомбі:</strong> З'являються ТІЛЬКИ при контакті різних типів. Типи змінюються кожні 10 секунд. <strong>УВАГА:</strong> Зомбі тепер можуть підбирати предмети, стріляти, ставити міни та руйнувати стіни!</p>
   <p><strong>💪 Здоров'я зомбі:</strong> Звичайний (2 HP), Швидкий (3 HP), Бос (5 HP)</p>
