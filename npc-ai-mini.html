@@ -1101,14 +1101,13 @@ class ZombieApocalypseGame {
           this.zombies.splice(zombieOnPlayer, 1);
           this.zombiesKilled++;
           if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
-          this.showEventNotification(`🔪 ${zombie.type.toUpperCase()} зомбі знищено ножем!`);
           
           if (this.zombies.length === 0) {
             this.spawnExit();
             this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
           }
         } else {
-          this.showEventNotification(`🔪 ${zombie.type.toUpperCase()} зомбі поранено ножем! (${zombie.health}/${zombie.maxHealth})`);
+          // Повідомлення про промах прибрано
         }
         this.renderMaze();
         this.updateStats();
@@ -1146,14 +1145,13 @@ class ZombieApocalypseGame {
         this.zombies.splice(target.index, 1);
         this.zombiesKilled++;
         if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
-        this.showEventNotification(`🔫 ${zombie.type.toUpperCase()} зомбі знищено!`);
         
         if (this.zombies.length === 0) {
           this.spawnExit();
           this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
         }
       } else {
-        this.showEventNotification(`🔫 ${zombie.type.toUpperCase()} зомбі поранено! (${zombie.health}/${zombie.maxHealth})`);
+        // Повідомлення про промах прибрано
       }
       this.renderMaze();
       this.updateStats();
@@ -1628,12 +1626,10 @@ class ZombieApocalypseGame {
                 if (Math.random() < 0.5) { // 50% на 50% - або з'являється новий зомбі, або видаляється один
                     if (zombies.length < maxZombies) {
                         this.spawnZombie();
-                        this.showEventNotification('☣️ Два зомбі зʼєднались та створили нового!');
                     }
                 } else { // 50% ймовірність видалення одного з зомбі
                     const toKillIndex = Math.random() < 0.5 ? i : j;
                     toRemove.add(toKillIndex);
-                    this.showEventNotification('💥 Один із зомбі загинув від контакту!');
                 }
                 // Break inner loop to prevent multiple interactions for z1 in one cycle
                 break;
@@ -1989,9 +1985,8 @@ class ZombieApocalypseGame {
                 if (zombie.health <= 0) {
                     this.zombies.splice(zombieIndex, 1);
                     this.zombiesKilled++;
-                    this.showEventNotification(`💥 Міна знищила зомбі! (${mineDamage} урону)`);
                 } else {
-                    this.showEventNotification(`💥 Міна поранила зомбі! -${mineDamage} HP (${zombie.health}/${zombie.maxHealth})`);
+                    // Повідомлення про поранення зомбі міною прибрано
                 }
                 if (this.audioMineExplosion) { this.audioMineExplosion.currentTime = 0; this.audioMineExplosion.play(); }
                 this.activeMines.splice(i, 1);
