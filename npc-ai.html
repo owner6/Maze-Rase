@@ -412,7 +412,7 @@
 <audio id="audioZombie" src="sounds/zombie.wav"></audio>
 <audio id="audioPickup" src="sounds/pickup.wav"></audio>
 <audio id="audioWin" src="sounds/win.wav"></audio>
-<audio id="audioLose" src="sounds/lose.wav"></audio>
+<audio id="audioLose" src="sounds/lose.mp3"></audio>
 <audio id="audioMineExplosion" src="sounds/mine-explosion.flac"></audio>
 <audio id="audioMinePlace" src="sounds/mine-place.flac"></audio>
 <audio id="audioZombieHit" src="sounds/zombie-hit.wav"></audio>
@@ -1234,31 +1234,37 @@ class ZombieApocalypseGame {
           zombie.inventory.ammo += 5;
           this.hideAmmo(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав патрони!');
+          console.log('[DIAG] Zombie picked up ammo at', this.ammoPos);
       }
       if (this.healthVisible && this.healthPos && zombie.pos[0] === this.healthPos[0] && zombie.pos[1] === this.healthPos[1]) {
           zombie.health = Math.min(zombie.maxHealth, zombie.health + 1); // Зомбі відновлює 1 HP
           this.hideHealth(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав здоров\'я!');
+          console.log('[DIAG] Zombie picked up health at', this.healthPos);
       }
       if (this.shieldVisible && this.shieldPos && zombie.pos[0] === this.shieldPos[0] && zombie.pos[1] === this.shieldPos[1]) {
           zombie.inventory.shield += 50;
           this.hideShield(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав щит!');
+          console.log('[DIAG] Zombie picked up shield at', this.shieldPos);
       }
       if (this.pickaxeVisible && this.pickaxePos && zombie.pos[0] === this.pickaxePos[0] && zombie.pos[1] === this.pickaxePos[1]) {
           zombie.inventory.hasPickaxe = true;
           this.hidePickaxe(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав топор!');
+          console.log('[DIAG] Zombie picked up pickaxe at', this.pickaxePos);
       }
       if (this.knifeVisible && this.knifePos && zombie.pos[0] === this.knifePos[0] && zombie.pos[1] === this.knifePos[1]) {
           zombie.inventory.hasKnife = true;
           this.hideKnife(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав ніж!');
+          console.log('[DIAG] Zombie picked up knife at', this.knifePos);
       }
       if (this.mineVisible && this.minePos && zombie.pos[0] === this.minePos[0] && zombie.pos[1] === this.minePos[1]) {
           zombie.inventory.mines += 1;
           this.hideMine(); picked = true;
           this.showEventNotification('🧟‍♂️ Зомбі підібрав міну!');
+          console.log('[DIAG] Zombie picked up mine at', this.minePos);
       }
       if (picked) {
           if (this.audioPickup) { this.audioPickup.currentTime = 0; this.audioPickup.play(); }
@@ -1675,12 +1681,51 @@ class ZombieApocalypseGame {
     setTimeout(() => this.spawnMine(), 14000 + Math.random() * 10000);
   }
 
-  spawnAmmo() { if (!this.ammoVisible) { this.ammoPos = this.getRandomEmptyPosition(); this.ammoVisible = true; this.renderMaze(); this.ammoTimeout = setTimeout(() => this.hideAmmo(), 5000); } }
-  hideAmmo() { this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); }
-  spawnHealth() { if (!this.healthVisible) { this.healthPos = this.getRandomEmptyPosition(); this.healthVisible = true; this.renderMaze(); this.healthTimeout = setTimeout(() => this.hideHealth(), 5000); } }
-  hideHealth() { this.healthVisible = false; this.healthPos = null; this.renderMaze(); }
-  spawnShield() { if (!this.shieldVisible) { this.shieldPos = this.getRandomEmptyPosition(); this.shieldVisible = true; this.renderMaze(); this.shieldTimeout = setTimeout(() => this.hideShield(), 5000); } }
-  hideShield() { this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); }
+  spawnAmmo() { 
+    console.log('[DIAG] spawnAmmo called, ammoVisible:', this.ammoVisible);
+    if (!this.ammoVisible) { 
+      this.ammoPos = this.getRandomEmptyPosition(); 
+      this.ammoVisible = true; 
+      console.log('[DIAG] Ammo spawned at', this.ammoPos);
+      this.renderMaze(); 
+      this.ammoTimeout = setTimeout(() => this.hideAmmo(), 5000); 
+    } 
+  }
+  hideAmmo() { 
+    console.log('[DIAG] hideAmmo called, ammoPos:', this.ammoPos);
+    this.ammoVisible = false; this.ammoPos = null; this.renderMaze(); 
+    if (this.ammoTimeout) clearTimeout(this.ammoTimeout); 
+  }
+  spawnHealth() { 
+    console.log('[DIAG] spawnHealth called, healthVisible:', this.healthVisible);
+    if (!this.healthVisible) { 
+      this.healthPos = this.getRandomEmptyPosition(); 
+      this.healthVisible = true; 
+      console.log('[DIAG] Health spawned at', this.healthPos);
+      this.renderMaze(); 
+      this.healthTimeout = setTimeout(() => this.hideHealth(), 5000); 
+    } 
+  }
+  hideHealth() { 
+    console.log('[DIAG] hideHealth called, healthPos:', this.healthPos);
+    this.healthVisible = false; this.healthPos = null; this.renderMaze(); 
+    if (this.healthTimeout) clearTimeout(this.healthTimeout); 
+  }
+  spawnShield() { 
+    console.log('[DIAG] spawnShield called, shieldVisible:', this.shieldVisible);
+    if (!this.shieldVisible) { 
+      this.shieldPos = this.getRandomEmptyPosition(); 
+      this.shieldVisible = true; 
+      console.log('[DIAG] Shield spawned at', this.shieldPos);
+      this.renderMaze(); 
+      this.shieldTimeout = setTimeout(() => this.hideShield(), 5000); 
+    } 
+  }
+  hideShield() { 
+    console.log('[DIAG] hideShield called, shieldPos:', this.shieldPos);
+    this.shieldVisible = false; this.shieldPos = null; this.renderMaze(); 
+    if (this.shieldTimeout) clearTimeout(this.shieldTimeout); 
+  }
   spawnPickaxe() { if (!this.isGameActive) return; this.pickaxePos = this.getRandomEmptyPosition(); this.pickaxeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.pickaxeTimeout = setTimeout(() => { this.hidePickaxe(); setTimeout(() => this.spawnPickaxe(), 15000 + Math.random() * 10000); }, duration); }
   hidePickaxe() { this.pickaxeVisible = false; this.pickaxePos = null; this.renderMaze(); if (this.pickaxeTimeout) clearTimeout(this.pickaxeTimeout); }
   spawnKnife() { if (!this.isGameActive) return; this.knifePos = this.getRandomEmptyPosition(); this.knifeVisible = true; this.renderMaze(); const duration = 8000 + Math.random() * 4000; this.knifeTimeout = setTimeout(() => { this.hideKnife(); setTimeout(() => this.spawnKnife(), 20000 + Math.random() * 15000); }, duration); }
