@@ -578,7 +578,8 @@ class ZombieApocalypseGame {
     this.playerHasPickaxe = false;
     this.knifePos = null;
     this.knifeVisible = false;
-    this.playerHasKnife = false;
+    this.playerHasKnife = true; // Ніж одразу у гравця
+    this.playerKnifeUses = 0;   // 6 ударів доступно
     this.minePos = null;
     this.mineVisible = false;
     this.playerMines = 0;
@@ -806,7 +807,8 @@ class ZombieApocalypseGame {
     this.playerHasPickaxe = false;
     this.knifePos = null;
     this.knifeVisible = false;
-    this.playerHasKnife = false;
+    this.playerHasKnife = true; // Ніж одразу у гравця
+    this.playerKnifeUses = 0;   // 6 ударів доступно
     this.minePos = null;
     this.mineVisible = false;
     this.playerMines = 0;
@@ -1087,6 +1089,13 @@ class ZombieApocalypseGame {
       this.showEventNotification('❌ Потрібен ніж для ближнього бою!');
       return;
     }
+    if (this.playerKnifeUses >= 6) {
+      this.showEventNotification('🔪 Ніж зламався! Потрібен новий ніж!');
+      this.playerHasKnife = false;
+      this.playerKnifeUses = 0;
+      this.updateStats();
+      return;
+    }
     
     const zombieOnPlayer = this.zombies.findIndex(z => 
       z.pos[0] === this.playerPos[0] && z.pos[1] === this.playerPos[1]
@@ -1100,6 +1109,7 @@ class ZombieApocalypseGame {
         if (zombie.health <= 0) {
           this.zombies.splice(zombieOnPlayer, 1);
           this.zombiesKilled++;
+          this.playerKnifeUses++; // Збільшуємо лічильник використань
           if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
           
           if (this.zombies.length === 0) {
@@ -1107,7 +1117,7 @@ class ZombieApocalypseGame {
             this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
           }
         } else {
-          // Повідомлення про промах прибрано
+          this.playerKnifeUses++; // Збільшуємо лічильник навіть при пораненні
         }
         this.renderMaze();
         this.updateStats();
@@ -1240,6 +1250,7 @@ class ZombieApocalypseGame {
     }
     if (this.knifeVisible && this.knifePos && this.playerPos[0] === this.knifePos[0] && this.playerPos[1] === this.knifePos[1]) {
       this.playerHasKnife = true;
+      this.playerKnifeUses = 0; // Скидаємо лічильник при підборі нового ножа
       this.hideKnife(); picked = true;
     }
     if (this.mineVisible && this.minePos && this.playerPos[0] === this.minePos[0] && this.playerPos[1] === this.minePos[1]) {
@@ -1855,7 +1866,7 @@ class ZombieApocalypseGame {
       knifeDiv.className = 'stat-item'; knifeDiv.id = 'knifeIndicator';
       statsBar.appendChild(knifeDiv);
     }
-    document.getElementById('knifeIndicator').innerHTML = `🔪 Ніж: <span style="color:${this.playerHasKnife ? '#33cc33' : '#666'}">${this.playerHasKnife ? 'Є' : 'Немає'}</span>`;
+    document.getElementById('knifeIndicator').innerHTML = `🔪 Ніж: <span style="color:${this.playerHasKnife ? '#33cc33' : '#666'}">${this.playerHasKnife ? `${6 - this.playerKnifeUses}/6` : 'Немає'}</span>`;
     
     if (!document.getElementById('mineIndicator')) {
       const statsBar = document.getElementById('statsBar');
