@@ -429,7 +429,7 @@
 <audio id="audioZombieSee" src="sounds/zombie-see.ogg"></audio>
 <audio id="audioSafeZone" src="sounds/safe-zone.wav"></audio>
 <audio id="audioZombieBite" src="sounds/zombie-bite.wav"></audio>
-<audio id="audioBreakWall" src="sounds/break-wall.wav"></audio>
+<audio id="audioBreakWall" src="sounds/break-wall.mp3"></audio>
 <audio id="audioPlayerDeath" src="sounds/player-death.mp3"></audio>
 <audio id="audioMineDefuse" src="sounds/pickup-of.wav"></audio>
 
@@ -1102,6 +1102,9 @@ class ZombieApocalypseGame {
     );
     
     if (zombieOnPlayer !== -1) {
+      // Збільшуємо лічильник використань ножа ПЕРЕД атакою
+      this.playerKnifeUses++;
+      
       if (Math.random() < 0.65) {
         const zombie = this.zombies[zombieOnPlayer];
         zombie.health--;
@@ -1109,15 +1112,12 @@ class ZombieApocalypseGame {
         if (zombie.health <= 0) {
           this.zombies.splice(zombieOnPlayer, 1);
           this.zombiesKilled++;
-          this.playerKnifeUses++; // Збільшуємо лічильник використань
           if (this.audioZombieKill) { this.audioZombieKill.currentTime = 0; this.audioZombieKill.play(); }
           
           if (this.zombies.length === 0) {
             this.spawnExit();
             this.showEventNotification('🏆 Всі зомбі знищені! Знайдіть вихід!');
           }
-        } else {
-          this.playerKnifeUses++; // Збільшуємо лічильник навіть при пораненні
         }
         this.renderMaze();
         this.updateStats();
