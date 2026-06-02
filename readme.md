@@ -36,6 +36,9 @@
 
 Клонуйте репозиторій і відкрийте потрібний HTML-файл у браузері (сервер не обов’язковий):
 
+<img width="1897" height="933" alt="image" src="https://github.com/user-attachments/assets/b946d1c9-233c-433d-9430-f75b79f3205a" />
+
+
 ```bash
 # приклад: локальний перегляд головної сторінки
 xdg-open index.html   # Linux
