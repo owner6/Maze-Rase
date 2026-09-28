@@ -1,13 +1,22 @@
 """Схема вентиляції сектора поверх карти з genmap.py (той самий seed → та сама карта).
 
-Модель (розділ 12.7 пропозиції):
-  • Магістраль — прохідна шахта (лаз) від генераторної ("серце") до вентиляційної камери кожної гілки.
-  • Гілка — одна на кліматичний регіон Вороного; має камеру із заслінкою.
-  • Решітки — виходи в коридори/кімнати; кожна точка спавну заражених = решітка.
-  • Зона обслуговування — клітинки, до яких повітря доходить коридорами (BFS від решіток),
-    тобто повітря йде по проходах, а не по геометрії Вороного.
-  • Застійна зона — прохід, від якого до найближчої решітки > STAGNANT_DIST клітинок.
-Шахти в стелі статичні: рух панелей їх не змінює, змінюються лише зони обслуговування.
+Модель (розділ 12.7, варіант B — одна припливна мережа):
+  • Магістраль — витяжний ствол: збирає спрацьоване повітря з камер; вона ж прохідний лаз.
+  • Камера гілки — витяжна точка гілки + заслінка.
+  • Гілка — одна на кліматичний регіон Вороного; дерево труб (MST) НАГНІТАЄ в решітки, в один бік.
+  • Решітки — припливні, одна роль. Кожна точка спавну заражених = решітка.
+  • Зворотний потік — повітря повертається від решіток ПРОХОДАМИ (двері + коридори) до камери.
+    Другої, витяжної мережі труб не існує; двері — ділянка повітроводу.
+  • Зона обслуговування — клітинки, які гілка покриває припливом (BFS від решіток).
+  • Застійна зона — СТАТИЧНА: прохід далі STAGNANT_DIST клітинок КОРИДОРАМИ від найближчої
+    решітки. Рахується ОДИН РАЗ на початковій конфігурації сектора і заморожується: рух панелей
+    її не перераховує, тож гравець вивчає карту раз і назавжди.
+    (Манхеттен по сітці тут не годиться: розстановка решіток жадібно насичує сектор до кроку
+    GRILLE_SPACING, тому манхеттенська відстань структурно не перевищує GRILLE_SPACING − 1,
+    і при порозі 9 застійних клітинок не було б жодної — перевірено для кількох seed.)
+
+Герметизація (панель Архітектора перекрила зворотний шлях) — явище динамічне, на статичній
+схемі не показується; тут видно лише напрямок, у який повітря повертатиметься, поки шлях вільний.
 
 Запуск: python genvent.py 2031
 """
@@ -61,7 +70,7 @@ for p in corridor:
     if all(abs(p[0] - q[0]) + abs(p[1] - q[1]) >= GRILLE_SPACING for q in grilles):
         add_grille(p, "corridor")
 
-# --- 5. Зони обслуговування: BFS коридорами від усіх решіток ---
+# --- 5. Зони обслуговування припливом: BFS коридорами від решіток ---
 serve, dist = {}, {}
 q = collections.deque()
 for p, (b, _) in grilles.items():
@@ -71,7 +80,21 @@ while q:
     for n in neighbors(*p):
         if n not in serve:
             serve[n], dist[n] = serve[p], dist[p] + 1; q.append(n)
-stagnant = [p for p in path_cells if dist.get(p, 99) > STAGNANT_DIST]
+
+# --- 5a. Застійні зони (12.7.1): порахувати ЗАРАЗ і заморозити ---
+# Це знімок початкової конфігурації: рух панелей його не оновлює, тому набір застійних
+# клітинок фіксований для цього seed. Саме на це й розраховує гравець-інженер.
+STAGNANT_FROZEN = frozenset(p for p in path_cells if dist.get(p, 99) > STAGNANT_DIST)
+stagnant = sorted(STAGNANT_FROZEN)
+
+# --- 5b. Зворотний потік: куди повітря піде, повертаючись до найближчої камери ---
+ret_next, seen_ret = {}, set(chambers)
+q = collections.deque(chambers)
+while q:
+    p = q.popleft()
+    for n in neighbors(*p):
+        if n not in seen_ret:
+            seen_ret.add(n); ret_next[n] = p; q.append(n)
 
 # --- 6. Труби гілки: MST (Прим) по Манхеттену від камери до решіток ---
 def mst_edges(root, pts):
@@ -95,6 +118,12 @@ for r in range(N):
             ax.add_patch(Rectangle((c, N - 1 - r), 1, 1, color=col, alpha=0.22))
 for r, c in stagnant:
     ax.add_patch(Rectangle((c, N - 1 - r), 1, 1, facecolor="none", hatch="////", edgecolor="#555", lw=0))
+# зворотний потік проходами до камери (двері + коридори); проріджено, щоб не забивало кадр
+for (r, c), (pr, pc) in ret_next.items():
+    if (r + c) % 3: continue
+    dr, dc = pr - r, pc - c
+    ax.arrow(X(c), Y(r), dc * 0.42, -dr * 0.42, width=0.035, head_width=0.26,
+             head_length=0.2, length_includes_head=True, color="#16a085", alpha=0.55, zorder=2)
 for r0, c0, h, w, t in rooms:
     ax.add_patch(Rectangle((c0, N - r0 - h), w, h, facecolor="none", edgecolor="black", lw=1.4))
     ax.text(c0 + w / 2, N - r0 - h / 2 - 0.9, t, ha="center", va="center", fontsize=6, color="#222")
@@ -129,20 +158,24 @@ for r, c in npcs:
 
 ax.set_xlim(0, N); ax.set_ylim(0, N); ax.set_aspect("equal"); ax.axis("off")
 counts = [sum(1 for b, _ in grilles.values() if b == i) for i in range(5)]
-ax.set_title(f"Вентиляція сектора 45×45, seed={SEED}  |  5 гілок, {len(grilles)} решіток, "
-             f"{len(stagnant)} застійних клітинок (> {STAGNANT_DIST} кл. від решітки)", fontsize=12)
+ax.set_title(f"Вентиляція сектора 45×45, seed={SEED}\n"
+             f"5 припливних гілок · {len(grilles)} решіток · {len(stagnant)} застійних клітинок "
+             f"(> {STAGNANT_DIST} кл. коридорами від решітки, заморожено від seed)",
+             fontsize=11, linespacing=1.4)
 legend = [Patch(color="#2c3e50", label="Стіна (панель)")] + \
          [Patch(color=BRANCH_COLORS[i], alpha=0.5, label=f"Гілка {BRANCH_NAMES[i]} — {CLIMATES[i][0]} ({counts[i]} реш.)") for i in range(5)] + \
-         [Patch(facecolor="none", hatch="////", edgecolor="#555", label="Застійна зона (без притоку)"),
-          plt.Line2D([], [], color="#7f8c8d", lw=6, label="Магістраль (прохідна, лаз)"),
-          plt.Line2D([], [], color="#333", lw=2, label="Труба гілки (непрохідна)"),
-          plt.Line2D([], [], marker="D", color="#888", ms=11, ls="", mec="black", label="Камера гілки + заслінка"),
+         [Patch(facecolor="none", hatch="////", edgecolor="#555", label="Застійна зона (статична, від seed)"),
+          plt.Line2D([], [], color="#7f8c8d", lw=6, label="Магістраль — витяжний ствол (лаз) + стояк опалення"),
+          plt.Line2D([], [], color="#333", lw=2, label="Труба гілки — приплив (непрохідна)"),
+          plt.Line2D([], [], color="#16a085", lw=2, alpha=0.7, label="Зворотний потік проходами до камери"),
+          plt.Line2D([], [], marker="D", color="#888", ms=11, ls="", mec="black", label="Камера гілки — витяг + заслінка + калорифер"),
           plt.Line2D([], [], marker="o", color="#d35400", ms=12, ls="", mec="black", label="Генераторна («серце»)"),
-          plt.Line2D([], [], marker="s", color="#aaa", ms=7, ls="", mec="black", label="Решітка (коридор / кімната)"),
+          plt.Line2D([], [], marker="s", color="#aaa", ms=7, ls="", mec="black", label="Решітка припливна (коридор / кімната)"),
           plt.Line2D([], [], marker="s", color="#aaa", ms=8, ls="", mec="#c0392b", mew=2, label="Решітка-спавн заражених"),
           plt.Line2D([], [], marker="^", color="#2980b9", ls="", mec="black", label="NPC")]
 ax.legend(handles=legend, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=3, fontsize=8, frameon=False)
-plt.tight_layout(); fig.subplots_adjust(bottom=0.09)
+plt.tight_layout(); fig.subplots_adjust(bottom=0.09, top=0.955)
 out = os.path.join(here, f"vent_seed{SEED}.png")
 plt.savefig(out, dpi=110)
-print(out, "grilles:", len(grilles), "per branch:", counts, "stagnant:", len(stagnant))
+print(out, "grilles:", len(grilles), "per branch:", counts,
+      "stagnant:", len(stagnant), f"({100*len(stagnant)/len(path_cells):.1f}% проходів)")

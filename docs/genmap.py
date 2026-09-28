@@ -51,11 +51,60 @@ walls = [(r, c) for r in range(1, N - 1) for c in range(1, N - 1) if maze[r][c] 
 for r, c in rng.sample(walls, int(len(walls) * 0.06)):
     maze[r][c] = PATH
 
-# 4. Клімат: регіони Вороного
-CLIMATES = [("Морозильна −18°C", "#9ecae1"), ("Холодна +4°C", "#deebf7"),
-            ("Нейтральна +18°C", "#f7f7f7"), ("Тепла +27°C", "#fee0d2"), ("Гаряча +38°C", "#fc9272")]
+# 4. Клімат: регіони Вороного (12.1)
+# ПРОЄКТНА ТЕМПЕРАТУРА регіону («за проєктом») — одна з п'яти проєктних зон, по одній на регіон, у фіксованому порядку (як у v1.0).
+# Це свідома умовність заради КОНТРАСТУ між регіонами, а не фізика рівня: −18 поруч із +38
+# у справному бункері неможливо, але так сектор читається і дає різний виклик у різних кутах.
+PALETTE = [("Морозильна", -30.0), ("Холодна", 0.0), ("Нейтральна", 20.0), ("Тепла", 40.0), ("Гаряча", 58.0)]   # v1.2: подача гарячіша за назву, щоб КОРИДОР лягав у свою смугу (12.9.6)
+setpoint = [t for _, t in PALETTE]
+region_temp = setpoint  # сумісність зі старими посиланнями
+BANDS = [(-99, -5, "Морозильна", "#9ecae1"), (-5, 12, "Холодна", "#deebf7"),
+         (12, 24, "Нейтральна", "#f7f7f7"), (24, 30, "Тепла", "#fee0d2"),
+         (30, 99, "Гаряча", "#fc9272")]   # v1.2: межа Гарячої +30 (було +32)
+# Кімнати з власною температурою: від регіону не залежать (12.1).
+ROOM_OWN_TEMP = {"Генераторна": (35, 40)}
+
+def band(t):
+    return next((n, col) for lo, hi, n, col in BANDS if lo <= t < hi)
+
+# Стан кліматичної установки (12.6, 12.7.2) — другий аргумент: off | generator | pump | boiler
+#   off       — нічого не працює: усе сповзає до породи +9
+#   generator — генератор працює, насос котельні зламаний: рекуперація гріє ЛИШЕ гілку генераторної
+#   pump      — генератор + полагоджений насос: +15 рекуперації розходиться по всіх калориферах
+#   boiler    — генератор + насос + котел: контур тримає проєктну температуру (потрібен для Тепла і Гаряча)
+# Термостат калорифера ніколи не подає вище проєктної: T_подачі = min(T_проєкт, тепло контуру).
+STATE = sys.argv[2] if len(sys.argv) > 2 else "off"
+assert STATE in ("off", "generator", "pump", "boiler"), STATE
+T_ROCK, RECUP = 9.0, 15.0
 seeds = [(rng.randrange(N), rng.randrange(N), i) for i in range(5)]
 climate = [[min(seeds, key=lambda s: (s[0] - r) ** 2 + (s[1] - c) ** 2)[2] for c in range(N)] for r in range(N)]
+
+# гілка генераторної — єдина, що гріється рекуперацією без насоса
+_gen = next(((r0 + h // 2, c0 + w // 2) for r0, c0, h, w, t in rooms if t == "Генераторна"), None)
+gen_region = climate[_gen[0]][_gen[1]] if _gen else None
+
+def supply_temp(i):
+    """T_подачі гілки регіону i за станом установки (12.7.2)."""
+    if STATE == "off":
+        return T_ROCK
+    if STATE == "generator":
+        return min(setpoint[i], RECUP) if i == gen_region else T_ROCK
+    if STATE == "pump":
+        return min(setpoint[i], RECUP)
+    return setpoint[i]                                   # boiler
+
+# у сталому режимі регіон сходиться до T_подачі (12.7.2) — це і бачить гравець
+actual = [supply_temp(i) for i in range(5)]
+gen_room_temp = 38.0 if STATE != "off" else T_ROCK        # генераторна +35…+40 поки працює
+# заливка за ФАКТИЧНОЮ температурою неперервною шкалою, а не лише за смугою:
+# у стані generator +9 і +11.4 — обидва «Холодна», і різниці між гілками не було б видно
+import matplotlib.colors as mcolors
+_cmap, _norm = plt.get_cmap("coolwarm"), mcolors.Normalize(vmin=-30, vmax=58)   # уся палітра від Морозильної до Гарячої
+def temp_color(t, alpha=0.6):
+    r, g, b, _ = _cmap(_norm(t))
+    return (1 - alpha) + alpha * r, (1 - alpha) + alpha * g, (1 - alpha) + alpha * b
+CLIMATES = [(f"Регіон {i + 1}: {band(actual[i])[0]} {actual[i]:+.1f}°C (за проєктом {setpoint[i]:+.1f})",
+             temp_color(actual[i])) for i in range(5)]
 
 # 5. Вихід у випадковому куті, крім стартового
 exit_ = rng.choice([(1, N - 2), (N - 2, 1), (N - 2, N - 2)])
@@ -89,11 +138,19 @@ for r in range(N):
             ax.add_patch(Rectangle((c, N - 1 - r), 1, 1, color="#2c3e50"))
         else:
             ax.add_patch(Rectangle((c, N - 1 - r), 1, 1, color=CLIMATES[climate[r][c]][1]))
+# межі регіонів Вороного — щоб їх було видно і тоді, коли всі регіони в одній смузі (стан off)
+for r in range(N):
+    for c in range(N):
+        if c + 1 < N and climate[r][c] != climate[r][c + 1]:
+            ax.plot([c + 1, c + 1], [N - 1 - r, N - r], color="#7f8c8d", lw=0.9, ls=(0, (2, 2)))
+        if r + 1 < N and climate[r][c] != climate[r + 1][c]:
+            ax.plot([c, c + 1], [N - 1 - r, N - 1 - r], color="#7f8c8d", lw=0.9, ls=(0, (2, 2)))
 ROOM_COLORS = {"Сейф-кімната": "#27ae60", "Спальня": "#8e44ad", "Кухня": "#f39c12", "Склад": "#7f8c8d",
                "Медпункт": "#e74c3c", "Торговий пост": "#f1c40f", "Пральня": "#3498db", "Генераторна": "#d35400"}
 for r0, c0, h, w, t in rooms:
     ax.add_patch(Rectangle((c0, N - r0 - h), w, h, facecolor=ROOM_COLORS[t], alpha=0.55, edgecolor="black", lw=1.5))
-    ax.text(c0 + w / 2, N - r0 - h / 2, t, ha="center", va="center", fontsize=6.5, weight="bold")
+    label = f"{t}\n{gen_room_temp:+.0f}°C" if t in ROOM_OWN_TEMP else t
+    ax.text(c0 + w / 2, N - r0 - h / 2, label, ha="center", va="center", fontsize=6.5, weight="bold")
 ax.add_patch(Rectangle((start[1], N - 1 - start[0]), 1, 1, color="#2ecc71", ec="black", lw=2))
 ax.text(start[1] + 0.5, N - 1 - start[0] + 0.5, "S", ha="center", va="center", fontsize=9, weight="bold")
 ax.add_patch(Rectangle((exit_[1], N - 1 - exit_[0]), 1, 1, color="#e74c3c", ec="black", lw=2))
@@ -116,7 +173,11 @@ while p != start: path.append(p); p = prev[p]
 ax.plot([c + 0.5 for r, c in path], [N - 1 - r + 0.5 for r, c in path], "-", color="#2ecc71", lw=1.2, alpha=0.8)
 
 ax.set_xlim(0, N); ax.set_ylim(0, N); ax.set_aspect("equal"); ax.axis("off")
-ax.set_title(f"Сектор 45×45, seed={SEED}  |  клітинка = 4×4 м (180×180 м)  |  шлях до шлюзу: {len(path)} кл. ≈ {len(path)*4} м", fontsize=12)
+STATE_LABEL = {"off": "усе вимкнене → порода +9 °C", "generator": "генератор без насоса → гріє лише свою гілку",
+               "pump": "генератор + насос → +15 °C у всіх гілках", "boiler": "генератор + насос + котел → за проєктом"}
+ax.set_title(f"Сектор 45×45, seed={SEED}  |  5 регіонів Вороного, за проєктом −30 / 0 / +20 / +40 / +58 °C\n"
+             f"стан установки: {STATE} — {STATE_LABEL[STATE]}  |  шлях до шлюзу: {len(path)} кл. ≈ {len(path)*4} м",
+             fontsize=11, linespacing=1.4)
 legend = [Patch(color="#2c3e50", label="Стіна (панель)")] + [Patch(color=col, label=n) for n, col in CLIMATES] + \
          [Patch(color=col, alpha=0.6, label=n) for n, col in ROOM_COLORS.items()] + \
          [plt.Line2D([], [], marker="o", color="#c0392b", ls="", mec="black", label="Заражений (спавн)"),
@@ -125,6 +186,12 @@ legend = [Patch(color="#2c3e50", label="Стіна (панель)")] + [Patch(co
           plt.Line2D([], [], color="#2ecc71", label="Найкоротший шлях S→E")]
 ax.legend(handles=legend, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=4, fontsize=8, frameon=False)
 plt.tight_layout()
-out = f"sector_seed{SEED}.png"
+out = f"sector_seed{SEED}.png" if STATE == "off" else f"sector_seed{SEED}_{STATE}.png"
 plt.savefig(out, dpi=110)
 print(out, "rooms:", len(rooms), "path:", len(path), "reachable:", len(dist))
+print(f"  стан {STATE}: " + ", ".join(
+      f"R{i+1} {actual[i]:+.1f}°C/{setpoint[i]:+.1f} ({band(actual[i])[0]})"
+      + (" ←ген" if i == gen_region else "") for i in range(5)))
+print("  кімнати з власною температурою:", ", ".join(
+      f"{t} {ROOM_OWN_TEMP[t][0]}…{ROOM_OWN_TEMP[t][1]}°C" for t in
+      sorted({t for *_, t in rooms} & set(ROOM_OWN_TEMP)) ) or "  —")
