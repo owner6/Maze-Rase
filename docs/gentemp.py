@@ -14,7 +14,9 @@ T_подачі гілки береться з genmap.py за станом уст
 колір і товщина — скільки клітинок «зливають» повітря через цю клітинку (накопичений потік). Застійні зони
 заштриховано, решітки — квадрати, камери — ромби.
 
-Запуск: python gentemp.py 2031 pump [хвилин=120] [--stove]  (--stove: буржуйка в першій спальні, двері відчинені)
+Запуск: python gentemp.py 2031 pump [хвилин=120] [--stove] [--outside=-36] [--recirc=0.8]
+  --outside: температура поверхні (EPIC-29), типово +9; --recirc: рециркуляція 12.7.9 — T_серця = (1−R)·T_зовн + R·T_витягу,
+  свіжий потік = потік × (1−R). Подача гілки: off → T_серця; generator/pump → min(T_проєкт, max(T_серця, +15)); boiler → T_проєкт.
 """
 import sys, os, collections
 import matplotlib
@@ -26,6 +28,8 @@ from matplotlib.patches import Patch, Rectangle
 here = os.path.dirname(os.path.abspath(__file__))
 argv = [a for a in sys.argv if not a.startswith("--")]
 STOVE = "--stove" in sys.argv
+OUTSIDE = next((float(a.split("=")[1]) for a in sys.argv if a.startswith("--outside=")), 9.0)   # T поверхні (EPIC-29); MVP = +9
+RECIRC = next((float(a.split("=")[1]) for a in sys.argv if a.startswith("--recirc=")), 0.0)     # рециркуляція 0 / 0,5 / 0,8 (12.7.9)
 T_MIN = int(argv[3]) if len(argv) > 3 else 120
 sys.argv = argv[:3]  # genmap читає argv[1], argv[2]
 
@@ -63,8 +67,19 @@ if STOVE:
         sources[stove_cell] = sources.get(stove_cell, 0) + 4.0
 
 # --- 3. Подача: температура в решітці за гілкою; потік = вентилятор 100 або природна тяга (12.7.0) ---
-supply = {p: supply_temp(b) for p, (b, _) in grilles.items()}
-FLOW = 1.0 if STATE != "off" else max(0.05, min(0.30, (10 + 1.0 * (T_ROCK - T_ROCK)) / 100))   # тяга 10 при секторі +9
+setpoint = gm["setpoint"]
+def supply_of(branch, T_heart):
+    """T_подачі гілки за станом установки і температурою серця (12.7.2, 12.9.1).
+    Калорифер лише ГРІЄ: подача = clamp(T_проєкт; від T_серця до тепла контуру); холодити може лише компресор рівня 4,
+    тому при поверхні теплішій за проєкт (літо, «Пожежі») холодні гілки отримують повітря серця як є."""
+    if STATE == "off": return T_heart
+    if STATE == "generator": return max(T_heart, min(setpoint[branch], max(T_heart, 15.0))) if branch == gen_region else T_heart
+    if STATE == "pump": return max(T_heart, min(setpoint[branch], max(T_heart, 15.0)))
+    return max(T_heart, setpoint[branch])
+branch_of = {p: b for p, (b, _) in grilles.items()}
+supply = {p: supply_of(b, (1 - RECIRC) * OUTSIDE + RECIRC * T_ROCK) for p, b in branch_of.items()}
+draft = max(5.0, min(40.0, 10 + 1.0 * (T_ROCK - OUTSIDE)))
+FLOW = 1.0 if STATE != "off" else draft / 100.0
 
 # зворотний шлях: порядок від решіток до камери — використовуємо ret_next (крок 5б)
 def k_between(a, b):
@@ -80,6 +95,10 @@ SUB = 6
 NB = {p: list(neighbors(*p)) for p in path_cells}
 UP = {p: [q for q in NB[p] if ret_next.get(q) == p] for p in path_cells}
 for minute in range(T_MIN * SUB):
+    if minute % SUB == 0 and RECIRC > 0:
+        T_ret = sum(Ta.values()) / len(Ta)
+        T_heart = (1 - RECIRC) * OUTSIDE + RECIRC * T_ret
+        supply = {p: supply_of(b, T_heart) for p, b in branch_of.items()}
     new = dict(Ta)
     for p in path_cells:
         t = Ta[p]
@@ -172,8 +191,8 @@ sb = plt.cm.ScalarMappable(cmap=cmap, norm=norm); sb.set_array([])
 fig.colorbar(sb, ax=ax1, fraction=0.035, pad=0.01, label="T повітря, °C")
 sf = plt.cm.ScalarMappable(cmap=fcmap, norm=fnorm); sf.set_array([])
 fig.colorbar(sf, ax=ax2, fraction=0.035, pad=0.01, label="накопичений зворотний потік, клітинок")
-sup_str = ", ".join(f"R{i+1} {supply_temp(i):+.0f}°" for i in range(5))
-ax1.set_title(f"Температура повітря через {T_MIN} ігр. хв, seed={SEED}, стан «{STATE}», потік {int(FLOW*100)}"
+sup_str = ", ".join(f"R{i+1} {supply_of(i, (1 - RECIRC) * OUTSIDE + RECIRC * (sum(Ta.values()) / len(Ta))):+.0f}°" for i in range(5))
+ax1.set_title(f"Температура повітря через {T_MIN} ігр. хв, seed={SEED}, стан «{STATE}», потік {int(FLOW*100)}, зовні {OUTSIDE:+.0f}°, рециркуляція {int(RECIRC*100)} %"
               + (" + буржуйка 4 кВт у спальні" if stove_cell else "") + f"\nподача в решітки: {sup_str}; старт +9 °C; ізотерми 0/12/18/24/32",
               fontsize=11, linespacing=1.4)
 ax2.set_title(f"Потоки повітря: приплив із решіток → проходами до камер гілок, seed={SEED}\n"
@@ -190,7 +209,8 @@ legend2 = [Patch(color=BRANCH_COLORS[i], alpha=0.6, label=f"Гілка {i+1}: {C
            plt.Line2D([], [], marker="s", color="#aaa", ms=7, ls="", mec="#c0392b", mew=2, label="Решітка-спавн")]
 ax2.legend(handles=legend2, loc="upper center", bbox_to_anchor=(0.5, -0.005), ncol=3, fontsize=8, frameon=False)
 plt.tight_layout()
-out = os.path.join(here, f"temp_seed{SEED}_{STATE}{'_stove' if stove_cell else ''}.png")
+tag = ("" if OUTSIDE == 9.0 else f"_out{int(OUTSIDE)}") + ("" if RECIRC == 0 else f"_R{int(RECIRC*100)}")
+out = os.path.join(here, f"temp_seed{SEED}_{STATE}{'_stove' if stove_cell else ''}{tag}.png")
 plt.savefig(out, dpi=100)
 BANDS = [(-99, -5, "Морозильна"), (-5, 12, "Холодна"), (12, 24, "Нейтральна"), (24, 30, "Тепла"), (30, 99, "Гаряча")]
 band = lambda x: next(n for lo, hi, n in BANDS if lo <= x < hi)
