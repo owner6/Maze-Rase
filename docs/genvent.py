@@ -149,6 +149,16 @@ for i, ch in enumerate(chambers):
     ax.text(X(ch[1]), Y(ch[0]), BRANCH_NAMES[i], ha="center", va="center", fontsize=8, weight="bold", color="white", zorder=9)
 ax.plot(X(gen[1]), Y(gen[0]), "o", ms=20, color="#d35400", mec="black", mew=2, zorder=8)
 ax.text(X(gen[1]), Y(gen[0]), "♥", ha="center", va="center", fontsize=11, color="white", zorder=9)
+# вентшахта на поверхню: два оголовки в одній шахті (12.7.0, ланка 8) — приплив заходить, витяг виходить назовні
+sx, sy = X(gen[1]), Y(gen[0])
+ax.annotate("", xy=(sx - 0.45, sy + 4.2), xytext=(sx - 0.45, sy + 1.2),
+            arrowprops=dict(arrowstyle="-|>", color="#e74c3c", lw=3, shrinkA=0, shrinkB=0), zorder=10)
+ax.annotate("", xy=(sx + 0.45, sy + 1.2), xytext=(sx + 0.45, sy + 4.2),
+            arrowprops=dict(arrowstyle="-|>", color="#2980b9", lw=3, shrinkA=0, shrinkB=0), zorder=10)
+ax.text(sx - 0.9, sy + 2.7, "ВИКИД\nназовні", ha="right", va="center", fontsize=7.5, weight="bold", color="#e74c3c", zorder=10,
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#e74c3c", lw=0.8, alpha=0.9))
+ax.text(sx + 0.9, sy + 2.7, "ПРИПЛИВ\nз поверхні", ha="left", va="center", fontsize=7.5, weight="bold", color="#2980b9", zorder=10,
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#2980b9", lw=0.8, alpha=0.9))
 ax.add_patch(Rectangle((start[1], N - 1 - start[0]), 1, 1, color="#2ecc71", ec="black", lw=2, zorder=6))
 ax.text(X(start[1]), Y(start[0]), "S", ha="center", va="center", fontsize=9, weight="bold", zorder=9)
 ax.add_patch(Rectangle((exit_[1], N - 1 - exit_[0]), 1, 1, color="#e74c3c", ec="black", lw=2, zorder=6))
@@ -169,7 +179,9 @@ legend = [Patch(color="#2c3e50", label="Стіна (панель)")] + \
           plt.Line2D([], [], color="#333", lw=2, label="Труба гілки — приплив (непрохідна)"),
           plt.Line2D([], [], color="#16a085", lw=2, alpha=0.7, label="Зворотний потік проходами до камери"),
           plt.Line2D([], [], marker="D", color="#888", ms=11, ls="", mec="black", label="Камера гілки — витяг + заслінка + калорифер"),
-          plt.Line2D([], [], marker="o", color="#d35400", ms=12, ls="", mec="black", label="Генераторна («серце»)"),
+          plt.Line2D([], [], marker="o", color="#d35400", ms=12, ls="", mec="black", label="Генераторна («серце») + вентшахта на поверхню"),
+          plt.Line2D([], [], color="#2980b9", lw=3, label="Приплив з поверхні (нижній оголовок)"),
+          plt.Line2D([], [], color="#e74c3c", lw=3, label="Викид назовні (верхній оголовок, +6 м)"),
           plt.Line2D([], [], marker="s", color="#aaa", ms=7, ls="", mec="black", label="Решітка припливна (коридор / кімната)"),
           plt.Line2D([], [], marker="s", color="#aaa", ms=8, ls="", mec="#c0392b", mew=2, label="Решітка-спавн заражених"),
           plt.Line2D([], [], marker="^", color="#2980b9", ls="", mec="black", label="NPC")]

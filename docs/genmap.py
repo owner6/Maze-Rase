@@ -29,7 +29,10 @@ while stack:
 
 # 2. Кімнати на непарних координатах
 ROOM_TYPES = [("Сейф-кімната", 3), ("Спальня", 4), ("Кухня", 2), ("Склад", 3),
-              ("Медпункт", 1), ("Торговий пост", 1), ("Пральня", 1), ("Генераторна", 1)]
+              ("Медпункт", 1), ("Торговий пост", 1), ("Пральня", 1), ("Генераторна", 1), ("Котельня", 1)]
+# Гарантія MVP (13.1, рішення v1.2 за прототипом sim_survival.py): у кожному секторі є щонайменше по одній кімнаті
+# кожного обов'язкового типу — без кухні (кран) гравець і NPC гинуть від спраги за 2 доби.
+REQUIRED = ["Кухня", "Генераторна", "Котельня", "Сейф-кімната", "Спальня", "Склад", "Медпункт", "Торговий пост"]
 rooms = []
 cell = [[None] * N for _ in range(N)]
 tries = 0
@@ -39,14 +42,66 @@ while sum(1 for _ in rooms) < 16 and tries < 3000:
     r0 = rng.randrange(1, N - h, 2); c0 = rng.randrange(1, N - w, 2)
     if abs(r0 - 1) + abs(c0 - 1) < 8: continue
     if any(abs(r0 - rr) < h + 3 and abs(c0 - cc) < w + 3 for rr, cc, _, _, _ in rooms): continue
-    rtype = rng.choices([t for t, _ in ROOM_TYPES], [wt for _, wt in ROOM_TYPES])[0]
+    rtype = REQUIRED[len(rooms)] if len(rooms) < len(REQUIRED) else rng.choices([t for t, _ in ROOM_TYPES], [wt for _, wt in ROOM_TYPES])[0]
     rooms.append((r0, c0, h, w, rtype))
     for r in range(r0, r0 + h):
         for c in range(c0, c0 + w):
             maze[r][c] = PATH; cell[r][c] = rtype
 
+# 2a. Периметр і дверні прорізи (REQ-MAZE-02, DEC-077): кімната має стіни по периметру і 1–2 прорізи.
+#     Кільце клітинок довкола кімнати замуровується; прорізом стає клітинка кільця, суміжна з коридором;
+#     якщо без якогось кільцевого проходу частина лабіринту стає недосяжною, він відкривається як додатковий проріз.
+def _bfs_all(src):
+    d = {src}; q = collections.deque([src])
+    while q:
+        r, c = q.popleft()
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < N and 0 <= nc < N and maze[nr][nc] == PATH and (nr, nc) not in d:
+                d.add((nr, nc)); q.append((nr, nc))
+    return d
+doors = {}   # (r0, c0) -> список клітинок-прорізів
+for r0, c0, h, w, rtype in rooms:
+    inside = {(r, c) for r in range(r0, r0 + h) for c in range(c0, c0 + w)}
+    ring = [(r, c) for r in range(r0 - 1, r0 + h + 1) for c in range(c0 - 1, c0 + w + 1)
+            if (r, c) not in inside and 0 < r < N - 1 and 0 < c < N - 1]
+    open_ring = [p for p in ring if maze[p[0]][p[1]] == PATH]
+    # кандидати в прорізи: клітинки кільця, що мають прохід назовні (не в кімнату і не в кільце)
+    def leads_out(p):
+        return any(0 <= p[0] + dr < N and 0 <= p[1] + dc < N and maze[p[0] + dr][p[1] + dc] == PATH
+                   and (p[0] + dr, p[1] + dc) not in inside and (p[0] + dr, p[1] + dc) not in ring
+                   for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+    cands = [p for p in open_ring if leads_out(p)]
+    for p in open_ring: maze[p[0]][p[1]] = WALL
+    chosen = rng.sample(cands, min(len(cands), rng.choice([1, 2]))) if cands else []
+    for p in chosen: maze[p[0]][p[1]] = PATH
+    if not chosen and open_ring:                      # кімната без кандидатів — лишаємо один старий прохід
+        p = rng.choice(open_ring); maze[p[0]][p[1]] = PATH; chosen = [p]
+    # зв'язність: відкривати кільцеві проходи, поки всі проходи досяжні зі старту
+    total = sum(row.count(PATH) for row in maze)
+    #   спершу пробити стіну між відрізаною частиною і рештою лабіринту ПОЗА кільцем (нова петля коридору);
+    #   лише якщо такої стіни немає — відкрити ще один проріз у кільці
+    all_rings = {(r, c) for rr, cc, hh, ww, _ in rooms for r in range(rr - 1, rr + hh + 1) for c in range(cc - 1, cc + ww + 1)}
+    while len(_bfs_all(start)) < total:
+        reach = _bfs_all(start)
+        def bridge(p):
+            return any(0 < p[0] + dr < N - 1 and 0 < p[1] + dc < N - 1 and 0 < p[0] - dr < N - 1 and 0 < p[1] - dc < N - 1
+                       and maze[p[0] + dr][p[1] + dc] == PATH and maze[p[0] - dr][p[1] - dc] == PATH
+                       and ((p[0] + dr, p[1] + dc) in reach) != ((p[0] - dr, p[1] - dc) in reach)
+                       for dr, dc in ((1, 0), (0, 1)))
+        fix = next((p for p in ((r, c) for r in range(1, N - 1) for c in range(1, N - 1))
+                    if maze[p[0]][p[1]] == WALL and p not in all_rings and bridge(p)), None)
+        if fix is None:
+            fix = next((p for p in open_ring if maze[p[0]][p[1]] == WALL and bridge(p)), None)
+            if fix is None: break
+            chosen.append(fix)
+        maze[fix[0]][fix[1]] = PATH
+    doors[(r0, c0)] = chosen
+
 # 3. Петлі: прибрати ~6 % внутрішніх стін між проходами
-walls = [(r, c) for r in range(1, N - 1) for c in range(1, N - 1) if maze[r][c] == WALL
+_ring_cells = {(r, c) for r0, c0, h, w, _ in rooms for r in range(r0 - 1, r0 + h + 1) for c in range(c0 - 1, c0 + w + 1)
+               if not (r0 <= r < r0 + h and c0 <= c < c0 + w)}
+walls = [(r, c) for r in range(1, N - 1) for c in range(1, N - 1) if maze[r][c] == WALL and (r, c) not in _ring_cells
          and ((maze[r - 1][c] == PATH and maze[r + 1][c] == PATH) or (maze[r][c - 1] == PATH and maze[r][c + 1] == PATH))]
 for r, c in rng.sample(walls, int(len(walls) * 0.06)):
     maze[r][c] = PATH
@@ -146,7 +201,7 @@ for r in range(N):
         if r + 1 < N and climate[r][c] != climate[r + 1][c]:
             ax.plot([c, c + 1], [N - 1 - r, N - 1 - r], color="#7f8c8d", lw=0.9, ls=(0, (2, 2)))
 ROOM_COLORS = {"Сейф-кімната": "#27ae60", "Спальня": "#8e44ad", "Кухня": "#f39c12", "Склад": "#7f8c8d",
-               "Медпункт": "#e74c3c", "Торговий пост": "#f1c40f", "Пральня": "#3498db", "Генераторна": "#d35400"}
+               "Медпункт": "#e74c3c", "Торговий пост": "#f1c40f", "Пральня": "#3498db", "Генераторна": "#d35400", "Котельня": "#a04000"}
 for r0, c0, h, w, t in rooms:
     ax.add_patch(Rectangle((c0, N - r0 - h), w, h, facecolor=ROOM_COLORS[t], alpha=0.55, edgecolor="black", lw=1.5))
     label = f"{t}\n{gen_room_temp:+.0f}°C" if t in ROOM_OWN_TEMP else t
